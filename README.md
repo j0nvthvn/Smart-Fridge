@@ -1,4 +1,4 @@
-# SmartFridge — React Native (Expo)
+# SmartFridge
 
 App móvil para gestión de alimentos del refrigerador.
 Proyecto: Ingeniería de Software — Grupo 4, Sección Jordan Barría Pineda.
