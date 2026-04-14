@@ -1,0 +1,83 @@
+import React, { useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Feather } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+
+import HomeScreen     from './screens/HomeScreen';
+import ScannerScreen  from './screens/ScannerScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import LoginScreen    from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
+import { COLORS }     from './constants/colors';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+const Tab = createBottomTabNavigator();
+
+const TAB_ICONS = {
+  Inicio:  'home',
+  Escáner: 'maximize',
+  Cuenta:  'user',
+};
+
+function MainTabs() {
+  return (
+    <NavigationContainer>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarActiveTintColor: COLORS.green500,
+          tabBarInactiveTintColor: COLORS.gray500,
+          tabBarStyle: {
+            backgroundColor: COLORS.white,
+            borderTopWidth: 0.5,
+            borderTopColor: COLORS.gray300,
+            paddingBottom: 6,
+            paddingTop: 6,
+            height: 60,
+          },
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '500',
+          },
+          tabBarIcon: ({ color }) => (
+            <Feather name={TAB_ICONS[route.name]} size={20} color={color} />
+          ),
+        })}
+      >
+        <Tab.Screen name="Inicio"  component={HomeScreen}     />
+        <Tab.Screen name="Escáner" component={ScannerScreen}  />
+        <Tab.Screen name="Cuenta"  component={SettingsScreen} />
+      </Tab.Navigator>
+    </NavigationContainer>
+  );
+}
+
+function AuthGate() {
+  const { user } = useAuth();
+  const [screen, setScreen] = useState('login'); // 'login' | 'register'
+
+  if (user) return <MainTabs />;
+
+  if (screen === 'register') {
+    return (
+      <RegisterScreen onGoToLogin={() => setScreen('login')} />
+    );
+  }
+
+  return (
+    <LoginScreen onGoToRegister={() => setScreen('register')} />
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AuthProvider>
+        <StatusBar style="light" />
+        <AuthGate />
+      </AuthProvider>
+    </SafeAreaProvider>
+  );
+}
