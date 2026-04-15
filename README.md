@@ -22,15 +22,29 @@ npx expo start
 Luego escanea el QR con la app **Expo Go** en tu celular.
 
 ## Estructura
+
 ```
 SmartFridge/
 ├── App.js                  # Navegación principal (Tab Navigator)
-├── constants/
-│   └── colors.js           # Paleta de colores (verde/blanco)
-└── screens/
-    ├── HomeScreen.js       # Vista inicio con alertas
-    ├── ScannerScreen.js    # Escáner y registro manual
-    └── SettingsScreen.js   # Perfil y preferencias
+├── src/
+│   ├── screens/            # Pantallas principales
+│   │   ├── HomeScreen.js       # Vista inicio con alertas
+│   │   ├── ScannerScreen.js    # Escáner y registro manual
+│   │   ├── SettingsScreen.js   # Perfil y preferencias
+│   │   ├── LoginScreen.js      # Autenticación
+│   │   └── RegisterScreen.js   # Registro
+│   ├── components/         # Componentes reutilizables
+│   │   ├── SectionHeader.js
+│   │   └── SettingsRow.js
+│   ├── context/            # Estado global (React Context)
+│   │   └── AuthContext.js
+│   ├── constants/          # Constantes de la app
+│   │   └── colors.js       # Paleta de colores (verde/blanco)
+│   ├── hooks/              # Custom hooks (lógica compartida)
+│   ├── services/           # Servicios (API, autenticación, storage)
+│   ├── utils/              # Funciones helper y datos mock
+│   └── types/              # Tipos TypeScript (si aplica)
+└── package.json
 ```
 
 ## Paleta de colores
