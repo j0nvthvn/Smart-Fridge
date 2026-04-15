@@ -4,13 +4,13 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
-import HomeScreen     from './screens/HomeScreen';
-import ScannerScreen  from './screens/ScannerScreen';
-import SettingsScreen from './screens/SettingsScreen';
-import LoginScreen    from './screens/LoginScreen';
-import RegisterScreen from './screens/RegisterScreen';
-import { COLORS }     from './constants/colors';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import HomeScreen     from './src/screens/HomeScreen';
+import ScannerScreen  from './src/screens/ScannerScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import LoginScreen    from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import { COLORS }     from './src/constants/colors';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
