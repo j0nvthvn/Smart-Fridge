@@ -18,13 +18,13 @@ export default function RegisterScreen({ onGoToLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  function handleRegister() {
+  async function handleRegister() {
     if (password !== confirm) {
       Alert.alert('Error', 'Las contraseñas no coinciden.');
       return;
     }
     setLoading(true);
-    const { error } = register(name.trim(), email.trim(), password);
+    const { error } = await register(name.trim(), email.trim(), password);
     setLoading(false);
     if (error) Alert.alert('Error', error);
   }

@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, View } from 'react-native';
 
 import HomeScreen     from './src/screens/HomeScreen';
 import ScannerScreen  from './src/screens/ScannerScreen';
@@ -55,8 +56,16 @@ function MainTabs() {
 }
 
 function AuthGate() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [screen, setScreen] = useState('login'); // 'login' | 'register'
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.green500 }}>
+        <ActivityIndicator size="large" color={COLORS.white} />
+      </View>
+    );
+  }
 
   if (user) return <MainTabs />;
 

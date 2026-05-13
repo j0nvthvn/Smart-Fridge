@@ -16,9 +16,9 @@ export default function LoginScreen({ onGoToRegister }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  function handleLogin() {
+  async function handleLogin() {
     setLoading(true);
-    const { error } = login(email.trim(), password);
+    const { error } = await login(email.trim(), password);
     setLoading(false);
     if (error) Alert.alert('Error', error);
   }

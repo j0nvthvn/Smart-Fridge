@@ -4,11 +4,13 @@ App móvil para gestión de alimentos del refrigerador.
 Proyecto: Ingeniería de Software — Grupo 4, Sección Jordan Barría Pineda.
 
 ## Vistas del Sprint 1
+
 - **Home**: resumen de productos, alertas de vencimiento, lista de compras
 - **Escáner**: escáner de código de barras + ingreso manual
 - **Cuenta**: perfil, notificaciones, preferencias
 
 ## Requisitos
+
 - Node.js 18+
 - Expo CLI
 
@@ -23,7 +25,7 @@ Luego escanea el QR con la app **Expo Go** en tu celular.
 
 ## Estructura
 
-```
+```text
 SmartFridge/
 ├── App.js                  # Navegación principal (Tab Navigator)
 ├── src/
@@ -48,12 +50,28 @@ SmartFridge/
 ```
 
 ## Paleta de colores
+
 - Verde principal: `#2CA456`
 - Verde oscuro: `#1E7A3F`
 - Fondo: `#F8F9FA`
 
+## Backend (Supabase)
+
+La app usa [Supabase](https://supabase.com) para autenticación y base de datos.
+
+- **Auth**: Login y Registro con email/contraseña (`supabase.auth`)
+- **BD**: Tabla `profiles` con nombre de usuario (creación automática vía trigger)
+- **Sesión**: Persistida localmente con `AsyncStorage`
+
+### Configuración
+
+1. Crear proyecto en [supabase.com](https://supabase.com)
+2. Ejecutar el SQL de `profiles` en el SQL Editor (ver plan en `.windsurf/plans/`)
+3. Copiar URL y anon key en `src/services/supabase.js`
+
 ## Próximos pasos (Sprint 2+)
+
 - [ ] Integrar `expo-camera` para escáner real
 - [ ] Vista de Inventario completa
-- [ ] Backend / base de datos (Neon o MongoDB)
-- [ ] Autenticación Login/Register (Patricio)
+- [ ] CRUD de productos en Supabase
+- [ ] Notificaciones push de vencimiento
