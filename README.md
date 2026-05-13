@@ -63,12 +63,6 @@ La app usa [Supabase](https://supabase.com) para autenticación y base de datos.
 - **BD**: Tabla `profiles` con nombre de usuario (creación automática vía trigger)
 - **Sesión**: Persistida localmente con `AsyncStorage`
 
-### Configuración
-
-1. Crear proyecto en [supabase.com](https://supabase.com)
-2. Ejecutar el SQL de `profiles` en el SQL Editor (ver plan en `.windsurf/plans/`)
-3. Copiar URL y anon key en `src/services/supabase.js`
-
 ## Próximos pasos (Sprint 2+)
 
 - [ ] Integrar `expo-camera` para escáner real
