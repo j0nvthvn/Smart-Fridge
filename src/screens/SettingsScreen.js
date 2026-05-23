@@ -44,7 +44,7 @@ export default function SettingsScreen() {
               {user?.name ? user.name.slice(0, 2).toUpperCase() : '??'}
             </Text>
           </View>
-          <Text style={styles.userName}>{user?.name ?? ''}</Text>
+          <Text style ={styles.userName}>{user?.name ?? ''}</Text>
           <Text style={styles.userEmail}>{user?.email ?? ''}</Text>
         </View>
 
@@ -137,56 +137,128 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.gray50 },
+  safe: { 
+    flex: 1, 
+    backgroundColor: '#F8FAFC' 
+  },
   profileHeader: {
     backgroundColor: COLORS.green500,
     alignItems: 'center',
-    paddingTop: 28,
-    paddingBottom: 32,
+    paddingTop: 32,
+    paddingBottom: 36,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
   },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    width: 80,
+    height: 80,
+    borderRadius: 40, 
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.5)',
-    marginBottom: 10,
+    borderColor: 'rgba(255,255,255,0.6)',
+    marginBottom: 12,
   },
-  avatarText: { fontSize: 24, fontWeight: '600', color: COLORS.white },
-  userName: { fontSize: 17, fontWeight: '600', color: COLORS.white },
-  userEmail: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 3 },
+  avatarText: { 
+    fontSize: 26, 
+    fontWeight: '700', 
+    color: COLORS.white 
+  },
+  userName: { 
+    fontSize: 19, 
+    fontWeight: '700', 
+    color: COLORS.white 
+  },
+  userEmail: { 
+    fontSize: 13, 
+    color: 'rgba(255,255,255,0.8)', 
+    marginTop: 4 
+  },
   sectionLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.gray500,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 6,
+    fontWeight: '700',
+    color: COLORS.gray400,
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1, 
   },
-  card: {
+  cardContainer: {
     backgroundColor: COLORS.white,
-    borderRadius: 14,
+    borderRadius: 24, 
     marginHorizontal: 16,
-    borderWidth: 0.5,
-    borderColor: COLORS.gray200,
-    overflow: 'hidden',
+    overflow: 'hidden', 
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0', 
   },
-  divider: {
-    height: 0.5,
-    backgroundColor: COLORS.gray100,
-    marginLeft: 58,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: COLORS.white,
   },
-  daysChip: { paddingHorizontal: 4 },
-  daysChipText: { fontSize: 13, color: COLORS.green500, fontWeight: '500' },
-  version: {
-    textAlign: 'center',
-    fontSize: 11,
-    color: COLORS.gray300,
-    marginTop: 24,
+  rowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9', 
+  },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconWrapper: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9', 
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: COLORS.gray700,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  valueText: {
+    fontSize: 14,
+    color: COLORS.gray400,
+    fontWeight: '500',
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2', 
+    borderRadius: 20,
+    marginHorizontal: 16,
+    marginTop: 32,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.red400, 
   },
 });

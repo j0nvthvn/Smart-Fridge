@@ -17,7 +17,7 @@ Proyecto: Ingeniería de Software — Grupo 4, Sección Jordan Barría Pineda.
 ## Instalación
 
 ```bash
-npm install
+npm installnp
 npx expo start
 ```
 
