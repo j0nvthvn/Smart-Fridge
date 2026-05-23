@@ -34,11 +34,13 @@ export function AuthProvider({ children }) {
 
   async function loadProfile(authUser) {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('name')
         .eq('id', authUser.id)
         .single();
+
+      if (error) throw error;
 
       setUser({
         id: authUser.id,

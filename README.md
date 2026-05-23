@@ -17,7 +17,8 @@ Proyecto: Ingeniería de Software — Grupo 4, Sección Jordan Barría Pineda.
 ## Instalación
 
 ```bash
-npm installnp
+npm install
+cp .env.example .env
 npx expo start
 ```
 
@@ -61,11 +62,26 @@ La app usa [Supabase](https://supabase.com) para autenticación y base de datos.
 
 - **Auth**: Login y Registro con email/contraseña (`supabase.auth`)
 - **BD**: Tabla `profiles` con nombre de usuario (creación automática vía trigger)
+- **Inventario**: Tabla `products` protegida por RLS por usuario
 - **Sesión**: Persistida localmente con `AsyncStorage`
+
+Configura estas variables antes de iniciar Expo:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Para crear la tabla de inventario, ejecuta en el SQL Editor de Supabase:
+
+```sql
+-- ver supabase/products.sql
+```
 
 ## Próximos pasos (Sprint 2+)
 
-- [ ] Integrar `expo-camera` para escáner real
+- [x] Integrar `expo-camera` para escáner real
 - [ ] Vista de Inventario completa
-- [ ] CRUD de productos en Supabase
+- [x] Guardar productos en Supabase
+- [ ] CRUD completo de productos en Supabase
 - [ ] Notificaciones push de vencimiento

@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1, 
   },
-  cardContainer: {
+  card: {
     backgroundColor: COLORS.white,
     borderRadius: 24, 
     marginHorizontal: 16,
@@ -203,45 +203,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E2E8F0', 
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: COLORS.white,
-  },
-  rowBorder: {
+  divider: {
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9', 
+    marginLeft: 58,
   },
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  daysChip: {
+    backgroundColor: COLORS.gray100,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  iconWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9', 
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowLabel: {
-    fontSize: 15,
-    fontWeight: '500',
+  daysChipText: {
+    fontSize: 12,
     color: COLORS.gray700,
+    fontWeight: '600',
   },
-  rowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  valueText: {
-    fontSize: 14,
-    color: COLORS.gray400,
-    fontWeight: '500',
+  version: {
+    textAlign: 'center',
+    marginTop: 28,
+    fontSize: 12,
+    color: COLORS.gray500,
   },
   logoutBtn: {
     flexDirection: 'row',

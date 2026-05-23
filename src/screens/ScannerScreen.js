@@ -8,10 +8,12 @@ import { Feather } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
+import { useInventory } from '../context/InventoryContext';
 
 const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '' };
 
 export default function ScannerScreen() {
+  const { addProduct } = useInventory();
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive]   = useState(false);
   const [scanned, setScanned]             = useState(false);
@@ -22,7 +24,7 @@ export default function ScannerScreen() {
   const [lastScanned, setLastScanned] = useState({
     name:     'Leche Colun 1L',
     category: 'Lácteos',
-    expires:  '14 Abr 2026',
+    expires:  '2026-05-22',
     quantity: '1 unidad',
     barcode:  null,
   });
@@ -68,6 +70,7 @@ export default function ScannerScreen() {
 
     setLastScanned(prev => ({
       ...prev,
+      id: null,
       barcode: data,
       name: `Código: ${data}`,
     }));
@@ -79,20 +82,40 @@ export default function ScannerScreen() {
     );
   }
 
-  function handleSaveManual() {
+  async function handleSaveManual() {
     if (!product.name.trim()) {
       Alert.alert('Error', 'El nombre del producto es obligatorio.');
       return;
     }
-    setLastScanned({ ...product, barcode: null });
-    Alert.alert('¡Guardado!', 'Producto agregado al inventario.', [
-      { text: 'OK', onPress: () => setShowManual(false) },
-    ]);
-    setProduct(EMPTY_PRODUCT);
+
+    try {
+      const savedProduct = await addProduct({ ...product, barcode: null });
+      setLastScanned(savedProduct);
+      Alert.alert('¡Guardado!', 'Producto agregado al inventario.', [
+        { text: 'OK', onPress: () => setShowManual(false) },
+      ]);
+      setProduct(EMPTY_PRODUCT);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
+    }
   }
 
-  function handleSaveInventory() {
-    Alert.alert('Inventario', `"${lastScanned.name}" guardado correctamente.`);
+  async function handleSaveInventory() {
+    if (!lastScanned.name?.trim()) {
+      Alert.alert('Error', 'No hay producto para guardar.');
+      return;
+    }
+
+    try {
+      if (!lastScanned.id) {
+        const savedProduct = await addProduct(lastScanned);
+        setLastScanned(savedProduct);
+      }
+
+      Alert.alert('Inventario', `"${lastScanned.name}" guardado correctamente.`);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
+    }
   }
 
   // Animated scan-line translateY
@@ -229,7 +252,7 @@ export default function ScannerScreen() {
             {[
               { label: 'Nombre del producto',  key: 'name',     placeholder: 'Ej: Leche entera 1L', keyboard: 'default'       },
               { label: 'Categoría',            key: 'category', placeholder: 'Ej: Lácteos',         keyboard: 'default'       },
-              { label: 'Fecha de vencimiento', key: 'expires',  placeholder: 'Ej: 30 Abr 2026',     keyboard: 'default'       },
+              { label: 'Fecha de vencimiento', key: 'expires',  placeholder: 'Ej: 2026-04-30',      keyboard: 'default'       },
               { label: 'Cantidad',             key: 'quantity', placeholder: 'Ej: 1 unidad',         keyboard: 'default'       },
             ].map(field => (
               <View key={field.key} style={styles.fieldWrapper}>

@@ -26,7 +26,16 @@ export default function RegisterScreen({ onGoToLogin }) {
     setLoading(true);
     const { error } = await register(name.trim(), email.trim(), password);
     setLoading(false);
-    if (error) Alert.alert('Error', error);
+    if (error) {
+      Alert.alert('Error', error);
+      return;
+    }
+
+    Alert.alert(
+      'Cuenta creada',
+      'Revisa tu correo si Supabase solicita confirmar la cuenta antes de iniciar sesion.',
+      [{ text: 'OK', onPress: onGoToLogin }],
+    );
   }
 
   return (
