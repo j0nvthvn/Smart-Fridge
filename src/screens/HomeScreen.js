@@ -7,15 +7,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
 import { useAuth } from '../context/AuthContext';
+import { useInventory } from '../context/InventoryContext';
 
-const ALERTS = [
-  { id: 1, name: 'Leche entera',    date: 'Vence hoy',        dot: COLORS.red400,    tag: 'Urgente', tagBg: COLORS.red50,    tagColor: COLORS.red400    },
-  { id: 2, name: 'Yogurt natural',  date: 'Vence en 2 días',  dot: COLORS.orange400, tag: 'Pronto',  tagBg: COLORS.orange50, tagColor: COLORS.orange400 },
-  { id: 3, name: 'Queso laminado',  date: 'Vence en 5 días',  dot: COLORS.yellow400, tag: 'OK',      tagBg: COLORS.green50,  tagColor: COLORS.green600  },
-];
+const ALERT_STYLES = {
+  expired: { dot: COLORS.red400, tag: 'Vencido', tagBg: COLORS.red50, tagColor: COLORS.red400 },
+  urgent:  { dot: COLORS.red400, tag: 'Urgente', tagBg: COLORS.red50, tagColor: COLORS.red400 },
+  soon:    { dot: COLORS.orange400, tag: 'Pronto', tagBg: COLORS.orange50, tagColor: COLORS.orange400 },
+  ok:      { dot: COLORS.yellow400, tag: 'OK', tagBg: COLORS.green50, tagColor: COLORS.green600 },
+};
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { loading, error, summary } = useInventory();
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -30,15 +34,15 @@ export default function HomeScreen() {
         {/* Summary cards */}
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryNum, { color: COLORS.green600 }]}>14</Text>
+            <Text style={[styles.summaryNum, { color: COLORS.green600 }]}>{summary.total}</Text>
             <Text style={styles.summaryLabel}>productos</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryNum, { color: COLORS.orange400 }]}>3</Text>
+            <Text style={[styles.summaryNum, { color: COLORS.orange400 }]}>{summary.expiringSoon}</Text>
             <Text style={styles.summaryLabel}>por vencer</Text>
           </View>
           <View style={styles.summaryCard}>
-            <Text style={[styles.summaryNum, { color: COLORS.red400 }]}>1</Text>
+            <Text style={[styles.summaryNum, { color: COLORS.red400 }]}>{summary.expired}</Text>
             <Text style={styles.summaryLabel}>vencidos</Text>
           </View>
         </View>
@@ -46,24 +50,56 @@ export default function HomeScreen() {
         {/* Alerts */}
         <SectionHeader icon="alert-circle" title="Alertas de vencimiento" />
 
-        {ALERTS.map(item => (
-          <View key={item.id} style={styles.alertCard}>
-            <View style={[styles.dot, { backgroundColor: item.dot }]} />
+        {loading ? (
+          <View style={styles.alertCard}>
+            <View style={[styles.dot, { backgroundColor: COLORS.gray500 }]} />
             <View style={styles.alertInfo}>
-              <Text style={styles.alertName}>{item.name}</Text>
-              <Text style={styles.alertDate}>{item.date}</Text>
-            </View>
-            <View style={[styles.tag, { backgroundColor: item.tagBg }]}>
-              <Text style={[styles.tagText, { color: item.tagColor }]}>{item.tag}</Text>
+              <Text style={styles.alertName}>Cargando inventario</Text>
+              <Text style={styles.alertDate}>Sincronizando con Supabase</Text>
             </View>
           </View>
-        ))}
+        ) : error ? (
+          <View style={styles.alertCard}>
+            <View style={[styles.dot, { backgroundColor: COLORS.red400 }]} />
+            <View style={styles.alertInfo}>
+              <Text style={styles.alertName}>No se pudo cargar el inventario</Text>
+              <Text style={styles.alertDate}>{error}</Text>
+            </View>
+          </View>
+        ) : summary.alerts.length === 0 ? (
+          <View style={styles.alertCard}>
+            <View style={[styles.dot, { backgroundColor: COLORS.green500 }]} />
+            <View style={styles.alertInfo}>
+              <Text style={styles.alertName}>Sin alertas pendientes</Text>
+              <Text style={styles.alertDate}>No hay productos por vencer pronto</Text>
+            </View>
+          </View>
+        ) : (
+          summary.alerts.map(item => {
+            const alertStyle = ALERT_STYLES[item.level] || ALERT_STYLES.ok;
+
+            return (
+              <View key={item.id} style={styles.alertCard}>
+                <View style={[styles.dot, { backgroundColor: alertStyle.dot }]} />
+                <View style={styles.alertInfo}>
+                  <Text style={styles.alertName}>{item.name}</Text>
+                  <Text style={styles.alertDate}>{item.date}</Text>
+                </View>
+                <View style={[styles.tag, { backgroundColor: alertStyle.tagBg }]}>
+                  <Text style={[styles.tagText, { color: alertStyle.tagColor }]}>
+                    {alertStyle.tag}
+                  </Text>
+                </View>
+              </View>
+            );
+          })
+        )}
 
         {/* Shopping list */}
         <SectionHeader icon="list" title="Lista de compras" />
 
         <TouchableOpacity style={styles.alertCard}>
-          <Text style={styles.shoppingText}>3 productos para reponer</Text>
+          <Text style={styles.shoppingText}>{summary.expired} productos para reponer</Text>
           <Text style={styles.shoppingLink}>Ver ›</Text>
         </TouchableOpacity>
 

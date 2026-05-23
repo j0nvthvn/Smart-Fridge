@@ -1,29 +1,180 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, TextInput, Modal, Alert,
+  ScrollView, TextInput, Modal, Alert, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
+import { useInventory } from '../context/InventoryContext';
 
-const LAST_SCANNED = {
-  name: 'Leche Colun 1L',
-  category: 'Lácteos',
-  expires: '14 Abr 2026',
-  quantity: '1 unidad',
-};
+const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '' };
 
 export default function ScannerScreen() {
-  const [showManual, setShowManual] = useState(false);
-  const [product, setProduct] = useState({ name: '', category: '', expires: '', quantity: '' });
+  const { addProduct } = useInventory();
+  const [permission, requestPermission] = useCameraPermissions();
+  const [cameraActive, setCameraActive]   = useState(false);
+  const [scanned, setScanned]             = useState(false);
 
-  function handleSave() {
-    Alert.alert('¡Guardado!', 'Producto agregado al inventario.', [
-      { text: 'OK', onPress: () => setShowManual(false) },
-    ]);
-    setProduct({ name: '', category: '', expires: '', quantity: '' });
+  const [showManual, setShowManual] = useState(false);
+  const [product, setProduct]       = useState(EMPTY_PRODUCT);
+
+  const [lastScanned, setLastScanned] = useState({
+    name:     'Leche Colun 1L',
+    category: 'Lácteos',
+    expires:  '2026-05-22',
+    quantity: '1 unidad',
+    barcode:  null,
+  });
+
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  function startPulse() {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
+      ])
+    ).start();
+  }
+
+  async function handleActivateCamera() {
+    if (!permission?.granted) {
+      const { granted } = await requestPermission();
+      if (!granted) {
+        Alert.alert(
+          'Permiso requerido',
+          'SmartFridge necesita acceso a la cámara para escanear productos. Puedes habilitarlo en Configuración.',
+          [{ text: 'Entendido' }],
+        );
+        return;
+      }
+    }
+    setScanned(false);
+    setCameraActive(true);
+    startPulse();
+  }
+
+  function handleCloseCamera() {
+    setCameraActive(false);
+    pulseAnim.stopAnimation();
+  }
+
+  function handleBarcodeScanned({ type, data }) {
+    if (scanned) return; // ignore duplicates
+    setScanned(true);
+    setCameraActive(false);
+    pulseAnim.stopAnimation();
+
+    setLastScanned(prev => ({
+      ...prev,
+      id: null,
+      barcode: data,
+      name: `Código: ${data}`,
+    }));
+
+    Alert.alert(
+      '¡Código detectado!',
+      `Tipo: ${type}\nCódigo: ${data}\n\nPuedes editar los datos del producto abajo.`,
+      [{ text: 'OK' }],
+    );
+  }
+
+  async function handleSaveManual() {
+    if (!product.name.trim()) {
+      Alert.alert('Error', 'El nombre del producto es obligatorio.');
+      return;
+    }
+
+    try {
+      const savedProduct = await addProduct({ ...product, barcode: null });
+      setLastScanned(savedProduct);
+      Alert.alert('¡Guardado!', 'Producto agregado al inventario.', [
+        { text: 'OK', onPress: () => setShowManual(false) },
+      ]);
+      setProduct(EMPTY_PRODUCT);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
+    }
+  }
+
+  async function handleSaveInventory() {
+    if (!lastScanned.name?.trim()) {
+      Alert.alert('Error', 'No hay producto para guardar.');
+      return;
+    }
+
+    try {
+      if (!lastScanned.id) {
+        const savedProduct = await addProduct(lastScanned);
+        setLastScanned(savedProduct);
+      }
+
+      Alert.alert('Inventario', `"${lastScanned.name}" guardado correctamente.`);
+    } catch (error) {
+      Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
+    }
+  }
+
+  // Animated scan-line translateY
+  const scanLineTranslate = pulseAnim.interpolate({
+    inputRange:  [0, 1],
+    outputRange: [-80, 80],
+  });
+
+  if (cameraActive) {
+    return (
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          facing="back"
+          barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'code128', 'code39'] }}
+          onBarcodeScanned={handleBarcodeScanned}
+        />
+
+        {/* Dark overlay with transparent cutout feel */}
+        <View style={styles.cameraOverlay}>
+          {/* Top bar */}
+          <SafeAreaView style={styles.cameraTopBar}>
+            <TouchableOpacity style={styles.closeCameraBtn} onPress={handleCloseCamera}>
+              <Feather name="x" size={20} color={COLORS.white} />
+            </TouchableOpacity>
+            <Text style={styles.cameraTopText}>Escanear producto</Text>
+            <View style={{ width: 40 }} />
+          </SafeAreaView>
+
+          {/* Viewfinder */}
+          <View style={styles.viewfinder}>
+            {/* Corner brackets */}
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
+
+            {/* Animated scan line */}
+            <Animated.View
+              style={[styles.scanLine, { transform: [{ translateY: scanLineTranslate }] }]}
+            />
+          </View>
+
+          {/* Hint */}
+          <Text style={styles.cameraHint}>
+            Centra el código de barras dentro del recuadro
+          </Text>
+
+          {/* Manual fallback */}
+          <TouchableOpacity
+            style={styles.manualFallbackBtn}
+            onPress={() => { handleCloseCamera(); setShowManual(true); }}
+          >
+            <Feather name="edit-2" size={14} color={COLORS.white} />
+            <Text style={styles.manualFallbackText}>Ingresar manualmente</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -36,7 +187,7 @@ export default function ScannerScreen() {
           <Text style={styles.headerTitle}>Escanear código de barras</Text>
         </View>
 
-        {/* Scanner viewfinder */}
+        {/* Scanner viewfinder (inactive state) */}
         <View style={styles.scannerBox}>
           <View style={[styles.corner, styles.cornerTL]} />
           <View style={[styles.corner, styles.cornerTR]} />
@@ -45,11 +196,8 @@ export default function ScannerScreen() {
           <Feather name="camera" size={36} color="rgba(255,255,255,0.3)" />
           <Text style={styles.scanHint}>Apunta al código de barras</Text>
 
-          {/* Activar cámara real */}
-          <TouchableOpacity
-            style={styles.activateBtn}
-            onPress={() => Alert.alert('Cámara', 'Integra expo-camera para activar el escáner real.')}
-          >
+          <TouchableOpacity style={styles.activateBtn} onPress={handleActivateCamera}>
+            <Feather name="zap" size={14} color={COLORS.white} style={{ marginRight: 6 }} />
             <Text style={styles.activateBtnText}>Activar cámara</Text>
           </TouchableOpacity>
         </View>
@@ -57,7 +205,7 @@ export default function ScannerScreen() {
         <Text style={styles.orText}>o ingresa manualmente</Text>
 
         <TouchableOpacity style={styles.manualBtn} onPress={() => setShowManual(true)}>
-          <Feather name="plus" size={16} color={COLORS.white} />
+          <Feather name="plus" size={16} color={COLORS.gray700} />
           <Text style={styles.manualBtnText}>Ingresar producto manual</Text>
         </TouchableOpacity>
 
@@ -66,26 +214,31 @@ export default function ScannerScreen() {
 
         <View style={styles.formCard}>
           {[
-            { label: 'Producto',  value: LAST_SCANNED.name,     color: COLORS.gray700  },
-            { label: 'Categoría', value: LAST_SCANNED.category, color: COLORS.gray700  },
-            { label: 'Vence',     value: LAST_SCANNED.expires,  color: COLORS.orange400},
-            { label: 'Cantidad',  value: LAST_SCANNED.quantity,  color: COLORS.gray700  },
+            { label: 'Producto',  value: lastScanned.name,     color: COLORS.gray700   },
+            { label: 'Categoría', value: lastScanned.category, color: COLORS.gray700   },
+            { label: 'Vence',     value: lastScanned.expires,  color: COLORS.orange400 },
+            { label: 'Cantidad',  value: lastScanned.quantity, color: COLORS.gray700   },
+            ...(lastScanned.barcode
+              ? [{ label: 'Código', value: lastScanned.barcode, color: COLORS.gray500 }]
+              : []),
           ].map((row, i, arr) => (
             <View key={row.label} style={[styles.formRow, i < arr.length - 1 && styles.formRowBorder]}>
               <Text style={styles.formLabel}>{row.label}</Text>
-              <Text style={[styles.formValue, { color: row.color }]}>{row.value}</Text>
+              <Text style={[styles.formValue, { color: row.color }]} numberOfLines={1} ellipsizeMode="tail">
+                {row.value}
+              </Text>
             </View>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.saveBtn}>
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSaveInventory}>
           <Text style={styles.saveBtnText}>Guardar en inventario</Text>
         </TouchableOpacity>
 
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* Modal ingreso manual */}
+      {/* ── Modal ingreso manual ────────────────────────────────────────────── */}
       <Modal visible={showManual} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalSafe}>
           <View style={styles.modalHeader}>
@@ -95,12 +248,12 @@ export default function ScannerScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalScroll}>
+          <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
             {[
-              { label: 'Nombre del producto', key: 'name',     placeholder: 'Ej: Leche entera 1L' },
-              { label: 'Categoría',           key: 'category', placeholder: 'Ej: Lácteos'         },
-              { label: 'Fecha de vencimiento',key: 'expires',  placeholder: 'Ej: 30 Abr 2026'     },
-              { label: 'Cantidad',            key: 'quantity', placeholder: 'Ej: 1 unidad'         },
+              { label: 'Nombre del producto',  key: 'name',     placeholder: 'Ej: Leche entera 1L', keyboard: 'default'       },
+              { label: 'Categoría',            key: 'category', placeholder: 'Ej: Lácteos',         keyboard: 'default'       },
+              { label: 'Fecha de vencimiento', key: 'expires',  placeholder: 'Ej: 2026-04-30',      keyboard: 'default'       },
+              { label: 'Cantidad',             key: 'quantity', placeholder: 'Ej: 1 unidad',         keyboard: 'default'       },
             ].map(field => (
               <View key={field.key} style={styles.fieldWrapper}>
                 <Text style={styles.inputLabel}>{field.label}</Text>
@@ -108,15 +261,17 @@ export default function ScannerScreen() {
                   style={styles.input}
                   placeholder={field.placeholder}
                   placeholderTextColor={COLORS.gray300}
+                  keyboardType={field.keyboard}
                   value={product[field.key]}
                   onChangeText={v => setProduct(p => ({ ...p, [field.key]: v }))}
                 />
               </View>
             ))}
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveManual}>
               <Text style={styles.saveBtnText}>Guardar producto</Text>
             </TouchableOpacity>
+            <View style={{ height: 32 }} />
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -125,99 +280,276 @@ export default function ScannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.gray50 },
+  safe: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   header: {
     backgroundColor: COLORS.green500,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.8)', marginBottom: 4 },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: COLORS.white },
+  headerSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.white,
+    marginTop: 4,
+  },
+
   scannerBox: {
-    backgroundColor: COLORS.gray700,
-    margin: 16,
-    borderRadius: 16,
-    height: 200,
+    backgroundColor: '#1E293B',
+    margin: 20,
+    borderRadius: 24,
+    height: 220,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 12,
     position: 'relative',
-    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
+  scanHint: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    fontWeight: '500',
+  },
+  activateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: COLORS.green500,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 99,
+  },
+  activateBtnText: {
+    fontSize: 13,
+    color: COLORS.white,
+    fontWeight: '600',
+  },
+
   corner: {
     position: 'absolute',
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderColor: COLORS.green400,
     borderStyle: 'solid',
   },
-  cornerTL: { top: 16, left: 16, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 4 },
-  cornerTR: { top: 16, right: 16, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 4 },
-  cornerBL: { bottom: 16, left: 16, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 4 },
-  cornerBR: { bottom: 16, right: 16, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 4 },
-  scanHint: { fontSize: 11, color: 'rgba(255,255,255,0.4)' },
-  activateBtn: {
-    marginTop: 8,
-    backgroundColor: 'rgba(44,164,86,0.85)',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
+  cornerTL: { top: 20, left: 20, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
+  cornerTR: { top: 20, right: 20, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
+  cornerBL: { bottom: 20, left: 20, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
+  cornerBR: { bottom: 20, right: 20, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 12 },
+
+  orText: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: COLORS.gray500,
+    marginVertical: 14,
+    fontWeight: '500',
   },
-  activateBtnText: { fontSize: 12, color: COLORS.white, fontWeight: '500' },
-  orText: { textAlign: 'center', fontSize: 11, color: COLORS.gray500, marginBottom: 12 },
   manualBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.green500,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    paddingVertical: 13,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  manualBtnText: { fontSize: 14, fontWeight: '500', color: COLORS.white },
+  manualBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.gray700,
+  },
+
   formCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    borderWidth: 0.5,
-    borderColor: COLORS.gray300,
+    borderRadius: 20,
+    marginHorizontal: 20,
+    marginTop: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
     overflow: 'hidden',
   },
-  formRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 },
-  formRowBorder: { borderBottomWidth: 0.5, borderBottomColor: COLORS.gray100 },
-  formLabel: { width: 90, fontSize: 12, color: COLORS.gray500 },
-  formValue: { fontSize: 13, fontWeight: '500' },
+  formRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  formRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  formLabel: {
+    width: 100,
+    fontSize: 13,
+    color: COLORS.gray500,
+    fontWeight: '500',
+  },
+  formValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
   saveBtn: {
     backgroundColor: COLORS.green500,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingVertical: 14,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginTop: 20,
+    paddingVertical: 16,
     alignItems: 'center',
+    shadowColor: COLORS.green500,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  saveBtnText: { fontSize: 14, fontWeight: '500', color: COLORS.white },
-  modalSafe: { flex: 1, backgroundColor: COLORS.white },
-  modalScroll: { padding: 16 },
-  fieldWrapper: { marginBottom: 16 },
+  saveBtnText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.white,
+  },
+
+  cameraContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraTopBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  closeCameraBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraTopText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.white,
+  },
+  viewfinder: {
+    width: 260,
+    height: 180,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  scanLine: {
+    position: 'absolute',
+    width: '90%',
+    height: 2,
+    backgroundColor: COLORS.green400,
+    borderRadius: 1,
+    shadowColor: COLORS.green400,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  cameraHint: {
+    marginTop: 28,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    paddingHorizontal: 32,
+  },
+  manualFallbackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 32,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 99,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  manualFallbackText: {
+    fontSize: 13,
+    color: COLORS.white,
+    fontWeight: '500',
+  },
+
+  modalSafe: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 0.5,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
     borderBottomColor: COLORS.gray200,
   },
-  modalTitle: { fontSize: 17, fontWeight: '600', color: COLORS.gray700 },
-  inputLabel: { fontSize: 12, color: COLORS.gray500, marginBottom: 6 },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: COLORS.gray700,
+  },
+  modalScroll: {
+    flex: 1,
+    paddingTop: 8,
+  },
+  fieldWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.gray700,
+    marginBottom: 6,
+  },
   input: {
-    backgroundColor: COLORS.gray50,
-    borderRadius: 10,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: COLORS.gray300,
+    borderRadius: 10,
+    backgroundColor: COLORS.gray50,
     paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingVertical: 12,
     fontSize: 14,
     color: COLORS.gray700,
   },

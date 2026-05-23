@@ -12,6 +12,7 @@ import LoginScreen    from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import { COLORS }     from './src/constants/colors';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { InventoryProvider } from './src/context/InventoryContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
@@ -84,8 +85,10 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="light" />
-        <AuthGate />
+        <InventoryProvider>
+          <StatusBar style="light" />
+          <AuthGate />
+        </InventoryProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
