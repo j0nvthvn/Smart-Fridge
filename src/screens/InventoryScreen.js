@@ -86,8 +86,11 @@ export default function InventoryScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await refreshInventory({ showLoading: false });
-    setRefreshing(false);
+    try {
+      await refreshInventory({ showLoading: false });
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function handleSave() {
