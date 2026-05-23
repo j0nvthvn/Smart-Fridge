@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, TextInput, Modal, Alert, Animated,
@@ -10,26 +10,74 @@ import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
 import { useInventory } from '../context/InventoryContext';
 
-const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '' };
+const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '', barcode: '' };
+const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas', 'Verduras', 'Bebidas', 'Congelados', 'Despensa', 'Snacks', 'Otro'];
+const QUANTITY_UNITS = ['unidades', 'paquetes', 'cajas', 'botellas', 'bolsas', 'kg', 'g', 'L', 'ml'];
+const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatMonthLabel(date) {
+  return date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+}
+
+function buildCalendarDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const startDate = new Date(year, month, 1 - startOffset);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    return date;
+  });
+}
+
+function parseQuantity(quantity) {
+  const [amount = '1', ...unitParts] = (quantity || '1 unidades').split(' ');
+  return {
+    amount,
+    unit: unitParts.join(' ') || 'unidades',
+  };
+}
+
+function buildQuantity(amount, unit) {
+  return `${amount || '1'} ${unit || 'unidades'}`;
+}
 
 export default function ScannerScreen() {
-  const { addProduct } = useInventory();
+  const { addProduct, products } = useInventory();
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive]   = useState(false);
   const [scanned, setScanned]             = useState(false);
 
   const [showManual, setShowManual] = useState(false);
   const [product, setProduct]       = useState(EMPTY_PRODUCT);
+  const [saving, setSaving]         = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showUnitPicker, setShowUnitPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
 
-  const [lastScanned, setLastScanned] = useState({
-    name:     'Leche Colun 1L',
-    category: 'Lácteos',
-    expires:  '2026-05-22',
-    quantity: '1 unidad',
-    barcode:  null,
-  });
+  const [lastScanned, setLastScanned] = useState(null);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
+  const quantityParts = parseQuantity(product.quantity);
+  const calendarDays = buildCalendarDays(calendarMonth);
+
+  useEffect(() => {
+    if (!lastScanned?.id) return;
+
+    const currentProduct = products.find(item => item.id === lastScanned.id);
+    setLastScanned(currentProduct || null);
+  }, [products, lastScanned?.id]);
 
   function startPulse() {
     Animated.loop(
@@ -62,34 +110,63 @@ export default function ScannerScreen() {
     pulseAnim.stopAnimation();
   }
 
+  function openManualForm(nextProduct = EMPTY_PRODUCT) {
+    const expires = nextProduct.expires ? new Date(nextProduct.expires) : new Date();
+    setCalendarMonth(Number.isNaN(expires.getTime()) ? new Date() : expires);
+    setProduct({ ...EMPTY_PRODUCT, quantity: '1 unidades', ...nextProduct });
+    setShowManual(true);
+  }
+
+  function closeManualForm() {
+    setShowManual(false);
+    setShowCategoryPicker(false);
+    setShowUnitPicker(false);
+    setShowDatePicker(false);
+    setProduct(EMPTY_PRODUCT);
+  }
+
   function handleBarcodeScanned({ type, data }) {
     if (scanned) return; // ignore duplicates
     setScanned(true);
     setCameraActive(false);
     pulseAnim.stopAnimation();
 
-    setLastScanned(prev => ({
-      ...prev,
-      id: null,
+    openManualForm({
+      ...EMPTY_PRODUCT,
       barcode: data,
-      name: `Código: ${data}`,
-    }));
+      quantity: '1 unidades',
+    });
 
     Alert.alert(
       '¡Código detectado!',
-      `Tipo: ${type}\nCódigo: ${data}\n\nPuedes editar los datos del producto abajo.`,
+      `Tipo: ${type}\nCódigo: ${data}\n\nCompleta los datos del producto para guardarlo.`,
       [{ text: 'OK' }],
     );
   }
 
+  function validateProduct(nextProduct) {
+    if (!nextProduct.name.trim()) {
+      return 'El nombre del producto es obligatorio.';
+    }
+
+    if (nextProduct.expires.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(nextProduct.expires.trim())) {
+      return 'La fecha debe usar formato AAAA-MM-DD.';
+    }
+
+    return null;
+  }
+
   async function handleSaveManual() {
-    if (!product.name.trim()) {
-      Alert.alert('Error', 'El nombre del producto es obligatorio.');
+    const validationError = validateProduct(product);
+    if (validationError) {
+      Alert.alert('Error', validationError);
       return;
     }
 
+    setSaving(true);
+
     try {
-      const savedProduct = await addProduct({ ...product, barcode: null });
+      const savedProduct = await addProduct(product);
       setLastScanned(savedProduct);
       Alert.alert('¡Guardado!', 'Producto agregado al inventario.', [
         { text: 'OK', onPress: () => setShowManual(false) },
@@ -97,14 +174,24 @@ export default function ScannerScreen() {
       setProduct(EMPTY_PRODUCT);
     } catch (error) {
       Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleSaveInventory() {
-    if (!lastScanned.name?.trim()) {
+    if (!lastScanned) {
       Alert.alert('Error', 'No hay producto para guardar.');
       return;
     }
+
+    const validationError = validateProduct(lastScanned);
+    if (validationError) {
+      Alert.alert('Error', validationError);
+      return;
+    }
+
+    setSaving(true);
 
     try {
       if (!lastScanned.id) {
@@ -115,6 +202,8 @@ export default function ScannerScreen() {
       Alert.alert('Inventario', `"${lastScanned.name}" guardado correctamente.`);
     } catch (error) {
       Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -131,7 +220,7 @@ export default function ScannerScreen() {
           style={StyleSheet.absoluteFillObject}
           facing="back"
           barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'code128', 'code39'] }}
-          onBarcodeScanned={handleBarcodeScanned}
+          onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
         />
 
         {/* Dark overlay with transparent cutout feel */}
@@ -167,7 +256,7 @@ export default function ScannerScreen() {
           {/* Manual fallback */}
           <TouchableOpacity
             style={styles.manualFallbackBtn}
-            onPress={() => { handleCloseCamera(); setShowManual(true); }}
+            onPress={() => { handleCloseCamera(); openManualForm(); }}
           >
             <Feather name="edit-2" size={14} color={COLORS.white} />
             <Text style={styles.manualFallbackText}>Ingresar manualmente</Text>
@@ -204,7 +293,7 @@ export default function ScannerScreen() {
 
         <Text style={styles.orText}>o ingresa manualmente</Text>
 
-        <TouchableOpacity style={styles.manualBtn} onPress={() => setShowManual(true)}>
+        <TouchableOpacity style={styles.manualBtn} onPress={() => openManualForm()}>
           <Feather name="plus" size={16} color={COLORS.gray700} />
           <Text style={styles.manualBtnText}>Ingresar producto manual</Text>
         </TouchableOpacity>
@@ -213,26 +302,42 @@ export default function ScannerScreen() {
         <SectionHeader icon="clock" title="Último escaneado" />
 
         <View style={styles.formCard}>
-          {[
-            { label: 'Producto',  value: lastScanned.name,     color: COLORS.gray700   },
-            { label: 'Categoría', value: lastScanned.category, color: COLORS.gray700   },
-            { label: 'Vence',     value: lastScanned.expires,  color: COLORS.orange400 },
-            { label: 'Cantidad',  value: lastScanned.quantity, color: COLORS.gray700   },
-            ...(lastScanned.barcode
-              ? [{ label: 'Código', value: lastScanned.barcode, color: COLORS.gray500 }]
-              : []),
-          ].map((row, i, arr) => (
-            <View key={row.label} style={[styles.formRow, i < arr.length - 1 && styles.formRowBorder]}>
-              <Text style={styles.formLabel}>{row.label}</Text>
-              <Text style={[styles.formValue, { color: row.color }]} numberOfLines={1} ellipsizeMode="tail">
-                {row.value}
-              </Text>
+          {lastScanned ? (
+            [
+              { label: 'Producto',  value: lastScanned.name,     color: COLORS.gray700   },
+              { label: 'Categoría', value: lastScanned.category, color: COLORS.gray700   },
+              { label: 'Vence',     value: lastScanned.expires || 'Sin fecha', color: COLORS.orange400 },
+              { label: 'Cantidad',  value: lastScanned.quantity, color: COLORS.gray700   },
+              ...(lastScanned.barcode
+                ? [{ label: 'Código', value: lastScanned.barcode, color: COLORS.gray500 }]
+                : []),
+            ].map((row, i, arr) => (
+              <View key={row.label} style={[styles.formRow, i < arr.length - 1 && styles.formRowBorder]}>
+                <Text style={styles.formLabel}>{row.label}</Text>
+                <Text style={[styles.formValue, { color: row.color }]} numberOfLines={1} ellipsizeMode="tail">
+                  {row.value}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyLastScan}>
+              <Feather name="package" size={22} color={COLORS.gray500} />
+              <Text style={styles.emptyLastScanText}>Aun no hay productos escaneados</Text>
             </View>
-          ))}
+          )}
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSaveInventory}>
-          <Text style={styles.saveBtnText}>Guardar en inventario</Text>
+        <TouchableOpacity
+          style={[
+            styles.saveBtn,
+            (!lastScanned || lastScanned.id || saving) && styles.saveBtnDisabled,
+          ]}
+          onPress={handleSaveInventory}
+          disabled={!lastScanned || !!lastScanned.id || saving}
+        >
+          <Text style={styles.saveBtnText}>
+            {lastScanned?.id ? 'Producto guardado' : saving ? 'Guardando...' : 'Guardar en inventario'}
+          </Text>
         </TouchableOpacity>
 
         <View style={{ height: 24 }} />
@@ -243,37 +348,222 @@ export default function ScannerScreen() {
         <SafeAreaView style={styles.modalSafe}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Ingresar producto</Text>
-            <TouchableOpacity onPress={() => setShowManual(false)}>
+            <TouchableOpacity onPress={closeManualForm}>
               <Feather name="x" size={22} color={COLORS.gray700} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
-            {[
-              { label: 'Nombre del producto',  key: 'name',     placeholder: 'Ej: Leche entera 1L', keyboard: 'default'       },
-              { label: 'Categoría',            key: 'category', placeholder: 'Ej: Lácteos',         keyboard: 'default'       },
-              { label: 'Fecha de vencimiento', key: 'expires',  placeholder: 'Ej: 2026-04-30',      keyboard: 'default'       },
-              { label: 'Cantidad',             key: 'quantity', placeholder: 'Ej: 1 unidad',         keyboard: 'default'       },
-            ].map(field => (
-              <View key={field.key} style={styles.fieldWrapper}>
-                <Text style={styles.inputLabel}>{field.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={field.placeholder}
-                  placeholderTextColor={COLORS.gray300}
-                  keyboardType={field.keyboard}
-                  value={product[field.key]}
-                  onChangeText={v => setProduct(p => ({ ...p, [field.key]: v }))}
-                />
-              </View>
-            ))}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Nombre del producto</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Leche entera 1L"
+                placeholderTextColor={COLORS.gray300}
+                value={product.name}
+                onChangeText={v => setProduct(p => ({ ...p, name: v }))}
+              />
+            </View>
 
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveManual}>
-              <Text style={styles.saveBtnText}>Guardar producto</Text>
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Categoría</Text>
+              <TouchableOpacity style={styles.selectInput} onPress={() => setShowCategoryPicker(true)}>
+                <Text style={[styles.selectText, !product.category && styles.placeholderText]}>
+                  {product.category || 'Selecciona una categoría'}
+                </Text>
+                <Feather name="chevron-down" size={18} color={COLORS.gray500} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
+              <TouchableOpacity style={styles.selectInput} onPress={() => setShowDatePicker(true)}>
+                <Text style={[styles.selectText, !product.expires && styles.placeholderText]}>
+                  {product.expires || 'Selecciona una fecha'}
+                </Text>
+                <Feather name="calendar" size={18} color={COLORS.gray500} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Cantidad</Text>
+              <View style={styles.quantityRow}>
+                <TextInput
+                  style={[styles.input, styles.quantityAmount]}
+                  placeholder="1"
+                  placeholderTextColor={COLORS.gray300}
+                  keyboardType="numeric"
+                  value={quantityParts.amount}
+                  onChangeText={value => {
+                    const cleanValue = value.replace(/[^0-9.]/g, '');
+                    setProduct(p => ({
+                      ...p,
+                      quantity: buildQuantity(cleanValue, parseQuantity(p.quantity).unit),
+                    }));
+                  }}
+                />
+                <TouchableOpacity style={styles.quantityUnit} onPress={() => setShowUnitPicker(true)}>
+                  <Text style={styles.selectText}>{quantityParts.unit}</Text>
+                  <Feather name="chevron-down" size={18} color={COLORS.gray500} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Código</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 7800000000000"
+                placeholderTextColor={COLORS.gray300}
+                keyboardType="default"
+                value={product.barcode}
+                onChangeText={v => setProduct(p => ({ ...p, barcode: v }))}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <Text style={styles.helpText}>La fecha se guarda en formato AAAA-MM-DD para activar alertas de vencimiento.</Text>
+
+            <TouchableOpacity
+              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+              onPress={handleSaveManual}
+              disabled={saving}
+            >
+              <Text style={styles.saveBtnText}>{saving ? 'Guardando...' : 'Guardar producto'}</Text>
             </TouchableOpacity>
             <View style={{ height: 32 }} />
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      <Modal visible={showCategoryPicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.optionSheet}>
+            <Text style={styles.optionTitle}>Seleccionar categoría</Text>
+            {CATEGORIES.map(category => (
+              <TouchableOpacity
+                key={category}
+                style={styles.optionRow}
+                onPress={() => {
+                  setProduct(p => ({ ...p, category }));
+                  setShowCategoryPicker(false);
+                }}
+              >
+                <Text style={styles.optionText}>{category}</Text>
+                {product.category === category ? (
+                  <Feather name="check" size={18} color={COLORS.green600} />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
+              <Text style={styles.optionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showUnitPicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.optionSheet}>
+            <Text style={styles.optionTitle}>Tipo de cantidad</Text>
+            {QUANTITY_UNITS.map(unit => (
+              <TouchableOpacity
+                key={unit}
+                style={styles.optionRow}
+                onPress={() => {
+                  setProduct(p => ({
+                    ...p,
+                    quantity: buildQuantity(parseQuantity(p.quantity).amount, unit),
+                  }));
+                  setShowUnitPicker(false);
+                }}
+              >
+                <Text style={styles.optionText}>{unit}</Text>
+                {quantityParts.unit === unit ? (
+                  <Feather name="check" size={18} color={COLORS.green600} />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowUnitPicker(false)}>
+              <Text style={styles.optionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showDatePicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.calendarSheet}>
+            <View style={styles.calendarHeader}>
+              <TouchableOpacity
+                style={styles.calendarNav}
+                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+              >
+                <Feather name="chevron-left" size={20} color={COLORS.gray700} />
+              </TouchableOpacity>
+              <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
+              <TouchableOpacity
+                style={styles.calendarNav}
+                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+              >
+                <Feather name="chevron-right" size={20} color={COLORS.gray700} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.weekRow}>
+              {WEEKDAYS.map((day, index) => (
+                <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
+              ))}
+            </View>
+
+            <View style={styles.daysGrid}>
+              {calendarDays.map(date => {
+                const dateValue = formatDate(date);
+                const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
+                const selected = product.expires === dateValue;
+
+                return (
+                  <TouchableOpacity
+                    key={dateValue}
+                    style={[
+                      styles.dayCell,
+                      selected && styles.dayCellSelected,
+                    ]}
+                    onPress={() => {
+                      setProduct(p => ({ ...p, expires: dateValue }));
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        !inCurrentMonth && styles.dayTextMuted,
+                        selected && styles.dayTextSelected,
+                      ]}
+                    >
+                      {date.getDate()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.calendarActions}>
+              <TouchableOpacity
+                style={styles.clearDateButton}
+                onPress={() => {
+                  setProduct(p => ({ ...p, expires: '' }));
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={styles.clearDateText}>Sin fecha</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.optionCancel} onPress={() => setShowDatePicker(false)}>
+                <Text style={styles.optionCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -432,6 +722,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.white,
   },
+  saveBtnDisabled: {
+    opacity: 0.6,
+  },
+  emptyLastScan: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    gap: 8,
+  },
+  emptyLastScanText: {
+    color: COLORS.gray500,
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
 
   cameraContainer: {
     flex: 1,
@@ -552,5 +857,182 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     color: COLORS.gray700,
+  },
+  selectInput: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    borderRadius: 10,
+    backgroundColor: COLORS.gray50,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  selectText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.gray700,
+    fontWeight: '500',
+  },
+  placeholderText: {
+    color: COLORS.gray500,
+    fontWeight: '400',
+  },
+  quantityRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quantityAmount: {
+    width: 92,
+  },
+  quantityUnit: {
+    flex: 1,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    borderRadius: 10,
+    backgroundColor: COLORS.gray50,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  helpText: {
+    fontSize: 12,
+    color: COLORS.gray500,
+    marginHorizontal: 20,
+    marginTop: 12,
+    lineHeight: 17,
+  },
+  optionOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.35)',
+    justifyContent: 'flex-end',
+  },
+  optionSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 18,
+    paddingBottom: 20,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.gray700,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  optionRow: {
+    minHeight: 48,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray100,
+  },
+  optionText: {
+    fontSize: 14,
+    color: COLORS.gray700,
+    fontWeight: '500',
+  },
+  optionCancel: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    borderRadius: 12,
+    backgroundColor: COLORS.gray100,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  optionCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.gray700,
+  },
+  calendarSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  calendarNav: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarTitle: {
+    flex: 1,
+    textAlign: 'center',
+    textTransform: 'capitalize',
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.gray700,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  weekDay: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.gray500,
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayCell: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  dayCellSelected: {
+    backgroundColor: COLORS.green500,
+  },
+  dayText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.gray700,
+  },
+  dayTextMuted: {
+    color: COLORS.gray300,
+  },
+  dayTextSelected: {
+    color: COLORS.white,
+  },
+  calendarActions: {
+    marginTop: 12,
+  },
+  clearDateButton: {
+    marginHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  clearDateText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.green600,
   },
 });

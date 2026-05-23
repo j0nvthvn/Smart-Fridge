@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 
 import HomeScreen     from './src/screens/HomeScreen';
+import InventoryScreen from './src/screens/InventoryScreen';
 import ScannerScreen  from './src/screens/ScannerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import LoginScreen    from './src/screens/LoginScreen';
@@ -19,6 +20,7 @@ const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
   Inicio:  'home',
+  Inventario: 'archive',
   Escáner: 'maximize',
   Cuenta:  'user',
 };
@@ -49,6 +51,7 @@ function MainTabs() {
         })}
       >
         <Tab.Screen name="Inicio"  component={HomeScreen}     />
+        <Tab.Screen name="Inventario" component={InventoryScreen} />
         <Tab.Screen name="Escáner" component={ScannerScreen}  />
         <Tab.Screen name="Cuenta"  component={SettingsScreen} />
       </Tab.Navigator>

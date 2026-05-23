@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 
 const LEGACY_STORAGE_KEY = '@smartfridge/inventory';
+const PRODUCT_COLUMNS = 'id, name, category, expires, quantity, barcode, created_at';
 
 const InventoryContext = createContext(null);
 
@@ -83,75 +84,77 @@ export function InventoryProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function migrateLegacyInventory() {
-      const stored = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
-      if (!stored) return null;
+  async function migrateLegacyInventory(userId) {
+    const stored = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!stored) return null;
 
-      const legacyProducts = JSON.parse(stored);
-      if (!Array.isArray(legacyProducts) || legacyProducts.length === 0) {
-        await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
-        return null;
-      }
+    const legacyProducts = JSON.parse(stored);
+    if (!Array.isArray(legacyProducts) || legacyProducts.length === 0) {
+      await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+      return null;
+    }
 
-      const payload = legacyProducts
-        .filter(product => product?.name?.trim())
-        .map(product => normalizeProduct(product, user.id, { strictDate: false }));
+    const payload = legacyProducts
+      .filter(product => product?.name?.trim())
+      .map(product => normalizeProduct(product, userId, { strictDate: false }));
 
-      if (payload.length === 0) {
-        await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
-        return null;
-      }
+    if (payload.length === 0) {
+      await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+      return null;
+    }
 
-      const { data, error: migrateError } = await supabase
+    const { data, error: migrateError } = await supabase
+      .from('products')
+      .insert(payload)
+      .select(PRODUCT_COLUMNS)
+      .order('created_at', { ascending: false });
+
+    if (migrateError) throw migrateError;
+
+    await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+    return data ?? [];
+  }
+
+  async function refreshInventory({ showLoading = true } = {}) {
+    if (!user?.id) {
+      setProducts([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    if (showLoading) {
+      setLoading(true);
+    }
+
+    try {
+      const { data, error: loadError } = await supabase
         .from('products')
-        .insert(payload)
-        .select('id, name, category, expires, quantity, barcode, created_at')
+        .select(PRODUCT_COLUMNS)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (migrateError) throw migrateError;
+      if (loadError) throw loadError;
 
-      await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
-      return data ?? [];
-    }
-
-    async function loadInventory() {
-      if (!user?.id) {
-        setProducts([]);
-        setLoading(false);
-        setError(null);
-        return;
+      if (data?.length) {
+        await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
+        setProducts(data);
+      } else {
+        const migratedProducts = await migrateLegacyInventory(user.id);
+        setProducts(migratedProducts ?? []);
       }
 
-      setLoading(true);
-
-      try {
-        const { data, error: loadError } = await supabase
-          .from('products')
-          .select('id, name, category, expires, quantity, barcode, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (loadError) throw loadError;
-
-        if (data?.length) {
-          await AsyncStorage.removeItem(LEGACY_STORAGE_KEY);
-          setProducts(data);
-        } else {
-          const migratedProducts = await migrateLegacyInventory();
-          setProducts(migratedProducts ?? []);
-        }
-
-        setError(null);
-      } catch (loadError) {
-        setProducts([]);
-        setError(loadError.message || 'No se pudo cargar el inventario.');
-      } finally {
-        setLoading(false);
-      }
+      setError(null);
+    } catch (loadError) {
+      setProducts([]);
+      setError(loadError.message || 'No se pudo cargar el inventario.');
+    } finally {
+      setLoading(false);
     }
+  }
 
-    loadInventory();
+  useEffect(() => {
+    refreshInventory();
   }, [user?.id]);
 
   async function addProduct(product) {
@@ -164,7 +167,7 @@ export function InventoryProvider({ children }) {
     const { data, error: insertError } = await supabase
       .from('products')
       .insert(payload)
-      .select('id, name, category, expires, quantity, barcode, created_at')
+      .select(PRODUCT_COLUMNS)
       .single();
 
     if (insertError) throw insertError;
@@ -173,6 +176,47 @@ export function InventoryProvider({ children }) {
     setError(null);
 
     return data;
+  }
+
+  async function updateProduct(productId, product) {
+    if (!user?.id) {
+      throw new Error('Debes iniciar sesion para editar productos.');
+    }
+
+    const payload = normalizeProduct(product, user.id);
+    delete payload.user_id;
+
+    const { data, error: updateError } = await supabase
+      .from('products')
+      .update(payload)
+      .eq('id', productId)
+      .eq('user_id', user.id)
+      .select(PRODUCT_COLUMNS)
+      .single();
+
+    if (updateError) throw updateError;
+
+    setProducts(current => current.map(item => (item.id === productId ? data : item)));
+    setError(null);
+
+    return data;
+  }
+
+  async function deleteProduct(productId) {
+    if (!user?.id) {
+      throw new Error('Debes iniciar sesion para eliminar productos.');
+    }
+
+    const { error: deleteError } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId)
+      .eq('user_id', user.id);
+
+    if (deleteError) throw deleteError;
+
+    setProducts(current => current.filter(item => item.id !== productId));
+    setError(null);
   }
 
   const summary = useMemo(() => {
@@ -187,7 +231,18 @@ export function InventoryProvider({ children }) {
   }, [products]);
 
   return (
-    <InventoryContext.Provider value={{ products, loading, error, summary, addProduct }}>
+    <InventoryContext.Provider
+      value={{
+        products,
+        loading,
+        error,
+        summary,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        refreshInventory,
+      }}
+    >
       {children}
     </InventoryContext.Provider>
   );
