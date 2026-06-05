@@ -365,26 +365,120 @@ export default function ScannerScreen() {
               />
             </View>
 
+            {/* ── Categoría inline picker ── */}
             <View style={styles.fieldWrapper}>
               <Text style={styles.inputLabel}>Categoría</Text>
-              <TouchableOpacity style={styles.selectInput} onPress={() => setShowCategoryPicker(true)}>
+              <TouchableOpacity
+                style={styles.selectInput}
+                onPress={() => {
+                  setShowCategoryPicker(v => !v);
+                  setShowUnitPicker(false);
+                  setShowDatePicker(false);
+                }}
+              >
                 <Text style={[styles.selectText, !product.category && styles.placeholderText]}>
                   {product.category || 'Selecciona una categoría'}
                 </Text>
-                <Feather name="chevron-down" size={18} color={COLORS.gray500} />
+                <Feather name={showCategoryPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.gray500} />
               </TouchableOpacity>
+              {showCategoryPicker && (
+                <View style={styles.inlineSheet}>
+                  {CATEGORIES.map(category => (
+                    <TouchableOpacity
+                      key={category}
+                      style={styles.optionRow}
+                      onPress={() => {
+                        setProduct(p => ({ ...p, category }));
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={styles.optionText}>{category}</Text>
+                      {product.category === category ? (
+                        <Feather name="check" size={18} color={COLORS.green600} />
+                      ) : null}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
+            {/* ── Fecha inline calendar ── */}
             <View style={styles.fieldWrapper}>
               <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
-              <TouchableOpacity style={styles.selectInput} onPress={() => setShowDatePicker(true)}>
+              <TouchableOpacity
+                style={styles.selectInput}
+                onPress={() => {
+                  setShowDatePicker(v => !v);
+                  setShowCategoryPicker(false);
+                  setShowUnitPicker(false);
+                }}
+              >
                 <Text style={[styles.selectText, !product.expires && styles.placeholderText]}>
                   {product.expires || 'Selecciona una fecha'}
                 </Text>
-                <Feather name="calendar" size={18} color={COLORS.gray500} />
+                <Feather name={showDatePicker ? 'chevron-up' : 'calendar'} size={18} color={COLORS.gray500} />
               </TouchableOpacity>
+              {showDatePicker && (
+                <View style={styles.inlineCalendar}>
+                  <View style={styles.calendarHeader}>
+                    <TouchableOpacity
+                      style={styles.calendarNav}
+                      onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                    >
+                      <Feather name="chevron-left" size={20} color={COLORS.gray700} />
+                    </TouchableOpacity>
+                    <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
+                    <TouchableOpacity
+                      style={styles.calendarNav}
+                      onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                    >
+                      <Feather name="chevron-right" size={20} color={COLORS.gray700} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.weekRow}>
+                    {WEEKDAYS.map((day, index) => (
+                      <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
+                    ))}
+                  </View>
+                  <View style={styles.daysGrid}>
+                    {calendarDays.map(date => {
+                      const dateValue = formatDate(date);
+                      const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
+                      const selected = product.expires === dateValue;
+                      return (
+                        <TouchableOpacity
+                          key={dateValue}
+                          style={[styles.dayCell, selected && styles.dayCellSelected]}
+                          onPress={() => {
+                            setProduct(p => ({ ...p, expires: dateValue }));
+                            setShowDatePicker(false);
+                          }}
+                        >
+                          <Text style={[
+                            styles.dayText,
+                            !inCurrentMonth && styles.dayTextMuted,
+                            selected && styles.dayTextSelected,
+                          ]}>
+                            {date.getDate()}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.clearDateButton, { marginTop: 8 }]}
+                    onPress={() => {
+                      setProduct(p => ({ ...p, expires: '' }));
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text style={styles.clearDateText}>Sin fecha</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
+            {/* ── Cantidad ── */}
             <View style={styles.fieldWrapper}>
               <Text style={styles.inputLabel}>Cantidad</Text>
               <View style={styles.quantityRow}>
@@ -402,11 +496,41 @@ export default function ScannerScreen() {
                     }));
                   }}
                 />
-                <TouchableOpacity style={styles.quantityUnit} onPress={() => setShowUnitPicker(true)}>
+                <TouchableOpacity
+                  style={styles.quantityUnit}
+                  onPress={() => {
+                    setShowUnitPicker(v => !v);
+                    setShowCategoryPicker(false);
+                    setShowDatePicker(false);
+                  }}
+                >
                   <Text style={styles.selectText}>{quantityParts.unit}</Text>
-                  <Feather name="chevron-down" size={18} color={COLORS.gray500} />
+                  <Feather name={showUnitPicker ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.gray500} />
                 </TouchableOpacity>
               </View>
+              {/* ── Unidad inline picker ── */}
+              {showUnitPicker && (
+                <View style={styles.inlineSheet}>
+                  {QUANTITY_UNITS.map(unit => (
+                    <TouchableOpacity
+                      key={unit}
+                      style={styles.optionRow}
+                      onPress={() => {
+                        setProduct(p => ({
+                          ...p,
+                          quantity: buildQuantity(parseQuantity(p.quantity).amount, unit),
+                        }));
+                        setShowUnitPicker(false);
+                      }}
+                    >
+                      <Text style={styles.optionText}>{unit}</Text>
+                      {quantityParts.unit === unit ? (
+                        <Feather name="check" size={18} color={COLORS.green600} />
+                      ) : null}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.fieldWrapper}>
@@ -434,136 +558,6 @@ export default function ScannerScreen() {
             <View style={{ height: 32 }} />
           </ScrollView>
         </SafeAreaView>
-      </Modal>
-
-      <Modal visible={showCategoryPicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.optionSheet}>
-            <Text style={styles.optionTitle}>Seleccionar categoría</Text>
-            {CATEGORIES.map(category => (
-              <TouchableOpacity
-                key={category}
-                style={styles.optionRow}
-                onPress={() => {
-                  setProduct(p => ({ ...p, category }));
-                  setShowCategoryPicker(false);
-                }}
-              >
-                <Text style={styles.optionText}>{category}</Text>
-                {product.category === category ? (
-                  <Feather name="check" size={18} color={COLORS.green600} />
-                ) : null}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
-              <Text style={styles.optionCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showUnitPicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.optionSheet}>
-            <Text style={styles.optionTitle}>Tipo de cantidad</Text>
-            {QUANTITY_UNITS.map(unit => (
-              <TouchableOpacity
-                key={unit}
-                style={styles.optionRow}
-                onPress={() => {
-                  setProduct(p => ({
-                    ...p,
-                    quantity: buildQuantity(parseQuantity(p.quantity).amount, unit),
-                  }));
-                  setShowUnitPicker(false);
-                }}
-              >
-                <Text style={styles.optionText}>{unit}</Text>
-                {quantityParts.unit === unit ? (
-                  <Feather name="check" size={18} color={COLORS.green600} />
-                ) : null}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowUnitPicker(false)}>
-              <Text style={styles.optionCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showDatePicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.calendarSheet}>
-            <View style={styles.calendarHeader}>
-              <TouchableOpacity
-                style={styles.calendarNav}
-                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
-              >
-                <Feather name="chevron-left" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
-              <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
-              <TouchableOpacity
-                style={styles.calendarNav}
-                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
-              >
-                <Feather name="chevron-right" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.weekRow}>
-              {WEEKDAYS.map((day, index) => (
-                <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
-              ))}
-            </View>
-
-            <View style={styles.daysGrid}>
-              {calendarDays.map(date => {
-                const dateValue = formatDate(date);
-                const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
-                const selected = product.expires === dateValue;
-
-                return (
-                  <TouchableOpacity
-                    key={dateValue}
-                    style={[
-                      styles.dayCell,
-                      selected && styles.dayCellSelected,
-                    ]}
-                    onPress={() => {
-                      setProduct(p => ({ ...p, expires: dateValue }));
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.dayText,
-                        !inCurrentMonth && styles.dayTextMuted,
-                        selected && styles.dayTextSelected,
-                      ]}
-                    >
-                      {date.getDate()}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.calendarActions}>
-              <TouchableOpacity
-                style={styles.clearDateButton}
-                onPress={() => {
-                  setProduct(p => ({ ...p, expires: '' }));
-                  setShowDatePicker(false);
-                }}
-              >
-                <Text style={styles.clearDateText}>Sin fecha</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.optionCancel} onPress={() => setShowDatePicker(false)}>
-                <Text style={styles.optionCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -911,6 +905,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(15,23,42,0.35)',
     justifyContent: 'flex-end',
+  },
+  inlineSheet: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  inlineCalendar: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+    marginTop: 6,
+    padding: 12,
   },
   optionSheet: {
     backgroundColor: COLORS.white,
