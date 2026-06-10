@@ -126,7 +126,7 @@ export default function ScannerScreen() {
   }
 
   function handleBarcodeScanned({ type, data }) {
-    if (scanned) return; // ignore duplicates
+    if (scanned) return;
     setScanned(true);
     setCameraActive(false);
     pulseAnim.stopAnimation();
@@ -148,11 +148,9 @@ export default function ScannerScreen() {
     if (!nextProduct.name.trim()) {
       return 'El nombre del producto es obligatorio.';
     }
-
     if (nextProduct.expires.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(nextProduct.expires.trim())) {
       return 'La fecha debe usar formato AAAA-MM-DD.';
     }
-
     return null;
   }
 
@@ -164,7 +162,6 @@ export default function ScannerScreen() {
     }
 
     setSaving(true);
-
     try {
       const savedProduct = await addProduct(product);
       setLastScanned(savedProduct);
@@ -192,13 +189,11 @@ export default function ScannerScreen() {
     }
 
     setSaving(true);
-
     try {
       if (!lastScanned.id) {
         const savedProduct = await addProduct(lastScanned);
         setLastScanned(savedProduct);
       }
-
       Alert.alert('Inventario', `"${lastScanned.name}" guardado correctamente.`);
     } catch (error) {
       Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
@@ -207,7 +202,6 @@ export default function ScannerScreen() {
     }
   }
 
-  // Animated scan-line translateY
   const scanLineTranslate = pulseAnim.interpolate({
     inputRange:  [0, 1],
     outputRange: [-80, 80],
@@ -223,9 +217,7 @@ export default function ScannerScreen() {
           onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
         />
 
-        {/* Dark overlay with transparent cutout feel */}
         <View style={styles.cameraOverlay}>
-          {/* Top bar */}
           <SafeAreaView style={styles.cameraTopBar}>
             <TouchableOpacity style={styles.closeCameraBtn} onPress={handleCloseCamera}>
               <Feather name="x" size={20} color={COLORS.white} />
@@ -234,26 +226,21 @@ export default function ScannerScreen() {
             <View style={{ width: 40 }} />
           </SafeAreaView>
 
-          {/* Viewfinder */}
           <View style={styles.viewfinder}>
-            {/* Corner brackets */}
             <View style={[styles.corner, styles.cornerTL]} />
             <View style={[styles.corner, styles.cornerTR]} />
             <View style={[styles.corner, styles.cornerBL]} />
             <View style={[styles.corner, styles.cornerBR]} />
 
-            {/* Animated scan line */}
             <Animated.View
               style={[styles.scanLine, { transform: [{ translateY: scanLineTranslate }] }]}
             />
           </View>
 
-          {/* Hint */}
           <Text style={styles.cameraHint}>
             Centra el código de barras dentro del recuadro
           </Text>
 
-          {/* Manual fallback */}
           <TouchableOpacity
             style={styles.manualFallbackBtn}
             onPress={() => { handleCloseCamera(); openManualForm(); }}
@@ -269,14 +256,11 @@ export default function ScannerScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView showsVerticalScrollIndicator={false}>
-
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerSub}>Agregar producto</Text>
           <Text style={styles.headerTitle}>Escanear código de barras</Text>
         </View>
 
-        {/* Scanner viewfinder (inactive state) */}
         <View style={styles.scannerBox}>
           <View style={[styles.corner, styles.cornerTL]} />
           <View style={[styles.corner, styles.cornerTR]} />
@@ -298,7 +282,6 @@ export default function ScannerScreen() {
           <Text style={styles.manualBtnText}>Ingresar producto manual</Text>
         </TouchableOpacity>
 
-        {/* Último escaneado */}
         <SectionHeader icon="clock" title="Último escaneado" />
 
         <View style={styles.formCard}>
@@ -367,7 +350,7 @@ export default function ScannerScreen() {
 
             <View style={styles.fieldWrapper}>
               <Text style={styles.inputLabel}>Categoría</Text>
-              <TouchableOpacity style={styles.selectInput} onPress={() => setShowCategoryPicker(true)}>
+              <TouchableOpacity style={styles.selectInput} onPress={() => { setShowCategoryPicker(true); setShowDatePicker(false); setShowUnitPicker(false); }}>
                 <Text style={[styles.selectText, !product.category && styles.placeholderText]}>
                   {product.category || 'Selecciona una categoría'}
                 </Text>
@@ -377,7 +360,7 @@ export default function ScannerScreen() {
 
             <View style={styles.fieldWrapper}>
               <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
-              <TouchableOpacity style={styles.selectInput} onPress={() => setShowDatePicker(true)}>
+              <TouchableOpacity style={styles.selectInput} onPress={() => { setShowDatePicker(true); setShowCategoryPicker(false); setShowUnitPicker(false); }}>
                 <Text style={[styles.selectText, !product.expires && styles.placeholderText]}>
                   {product.expires || 'Selecciona una fecha'}
                 </Text>
@@ -402,7 +385,7 @@ export default function ScannerScreen() {
                     }));
                   }}
                 />
-                <TouchableOpacity style={styles.quantityUnit} onPress={() => setShowUnitPicker(true)}>
+                <TouchableOpacity style={styles.quantityUnit} onPress={() => { setShowUnitPicker(true); setShowCategoryPicker(false); setShowDatePicker(false); }}>
                   <Text style={styles.selectText}>{quantityParts.unit}</Text>
                   <Feather name="chevron-down" size={18} color={COLORS.gray500} />
                 </TouchableOpacity>
@@ -433,606 +416,226 @@ export default function ScannerScreen() {
             </TouchableOpacity>
             <View style={{ height: 32 }} />
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
 
-      <Modal visible={showCategoryPicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.optionSheet}>
-            <Text style={styles.optionTitle}>Seleccionar categoría</Text>
-            {CATEGORIES.map(category => (
-              <TouchableOpacity
-                key={category}
-                style={styles.optionRow}
-                onPress={() => {
-                  setProduct(p => ({ ...p, category }));
-                  setShowCategoryPicker(false);
-                }}
-              >
-                <Text style={styles.optionText}>{category}</Text>
-                {product.category === category ? (
-                  <Feather name="check" size={18} color={COLORS.green600} />
-                ) : null}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
-              <Text style={styles.optionCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showUnitPicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.optionSheet}>
-            <Text style={styles.optionTitle}>Tipo de cantidad</Text>
-            {QUANTITY_UNITS.map(unit => (
-              <TouchableOpacity
-                key={unit}
-                style={styles.optionRow}
-                onPress={() => {
-                  setProduct(p => ({
-                    ...p,
-                    quantity: buildQuantity(parseQuantity(p.quantity).amount, unit),
-                  }));
-                  setShowUnitPicker(false);
-                }}
-              >
-                <Text style={styles.optionText}>{unit}</Text>
-                {quantityParts.unit === unit ? (
-                  <Feather name="check" size={18} color={COLORS.green600} />
-                ) : null}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowUnitPicker(false)}>
-              <Text style={styles.optionCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showDatePicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.calendarSheet}>
-            <View style={styles.calendarHeader}>
-              <TouchableOpacity
-                style={styles.calendarNav}
-                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
-              >
-                <Feather name="chevron-left" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
-              <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
-              <TouchableOpacity
-                style={styles.calendarNav}
-                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
-              >
-                <Feather name="chevron-right" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
+          {/* ── SELECTORES POSICIONADOS ABSOLUTAMENTE (Compatibles con iOS) ── */}
+          {showCategoryPicker && (
+            <View style={styles.absoluteOverlay}>
+              <TouchableOpacity style={styles.dismissOverlay} activeOpacity={1} onPress={() => setShowCategoryPicker(false)} />
+              <View style={styles.optionSheet}>
+                <Text style={styles.optionTitle}>Seleccionar categoría</Text>
+                <ScrollView bounces={false} style={{ maxHeight: 300 }}>
+                  {CATEGORIES.map(category => (
+                    <TouchableOpacity
+                      key={category}
+                      style={styles.optionRow}
+                      onPress={() => {
+                        setProduct(p => ({ ...p, category }));
+                        setShowCategoryPicker(false);
+                      }}
+                    >
+                      <Text style={styles.optionText}>{category}</Text>
+                      {product.category === category && <Feather name="check" size={18} color={COLORS.green600} />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
+                  <Text style={styles.optionCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          )}
 
-            <View style={styles.weekRow}>
-              {WEEKDAYS.map((day, index) => (
-                <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
-              ))}
+          {showUnitPicker && (
+            <View style={styles.absoluteOverlay}>
+              <TouchableOpacity style={styles.dismissOverlay} activeOpacity={1} onPress={() => setShowUnitPicker(false)} />
+              <View style={styles.optionSheet}>
+                <Text style={styles.optionTitle}>Tipo de cantidad</Text>
+                <ScrollView bounces={false} style={{ maxHeight: 300 }}>
+                  {QUANTITY_UNITS.map(unit => (
+                    <TouchableOpacity
+                      key={unit}
+                      style={styles.optionRow}
+                      onPress={() => {
+                        setProduct(p => ({
+                          ...p,
+                          quantity: buildQuantity(parseQuantity(p.quantity).amount, unit),
+                        }));
+                        setShowUnitPicker(false);
+                      }}
+                    >
+                      <Text style={styles.optionText}>{unit}</Text>
+                      {quantityParts.unit === unit && <Feather name="check" size={18} color={COLORS.green600} />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity style={styles.optionCancel} onPress={() => setShowUnitPicker(false)}>
+                  <Text style={styles.optionCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
+          )}
 
-            <View style={styles.daysGrid}>
-              {calendarDays.map(date => {
-                const dateValue = formatDate(date);
-                const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
-                const selected = product.expires === dateValue;
-
-                return (
+          {showDatePicker && (
+            <View style={styles.absoluteOverlay}>
+              <TouchableOpacity style={styles.dismissOverlay} activeOpacity={1} onPress={() => setShowDatePicker(false)} />
+              <View style={styles.calendarSheet}>
+                <View style={styles.calendarHeader}>
                   <TouchableOpacity
-                    key={dateValue}
-                    style={[
-                      styles.dayCell,
-                      selected && styles.dayCellSelected,
-                    ]}
+                    style={styles.calendarNav}
+                    onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                  >
+                    <Feather name="chevron-left" size={20} color={COLORS.gray700} />
+                  </TouchableOpacity>
+                  <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
+                  <TouchableOpacity
+                    style={styles.calendarNav}
+                    onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                  >
+                    <Feather name="chevron-right" size={20} color={COLORS.gray700} />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.weekRow}>
+                  {WEEKDAYS.map((day, index) => (
+                    <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
+                  ))}
+                </View>
+
+                <View style={styles.daysGrid}>
+                  {calendarDays.map(date => {
+                    const dateValue = formatDate(date);
+                    const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
+                    const selected = product.expires === dateValue;
+
+                    return (
+                      <TouchableOpacity
+                        key={dateValue}
+                        style={[styles.dayCell, selected && styles.dayCellSelected]}
+                        onPress={() => {
+                          setProduct(p => ({ ...p, expires: dateValue }));
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        <Text style={[styles.dayText, !inCurrentMonth && styles.dayTextMuted, selected && styles.dayTextSelected]}>
+                          {date.getDate()}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.calendarActions}>
+                  <TouchableOpacity
+                    style={styles.clearDateButton}
                     onPress={() => {
-                      setProduct(p => ({ ...p, expires: dateValue }));
+                      setProduct(p => ({ ...p, expires: '' }));
                       setShowDatePicker(false);
                     }}
                   >
-                    <Text
-                      style={[
-                        styles.dayText,
-                        !inCurrentMonth && styles.dayTextMuted,
-                        selected && styles.dayTextSelected,
-                      ]}
-                    >
-                      {date.getDate()}
-                    </Text>
+                    <Text style={styles.clearDateText}>Sin fecha</Text>
                   </TouchableOpacity>
-                );
-              })}
+                  <TouchableOpacity style={styles.optionCancel} onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.optionCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
+          )}
 
-            <View style={styles.calendarActions}>
-              <TouchableOpacity
-                style={styles.clearDateButton}
-                onPress={() => {
-                  setProduct(p => ({ ...p, expires: '' }));
-                  setShowDatePicker(false);
-                }}
-              >
-                <Text style={styles.clearDateText}>Sin fecha</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.optionCancel} onPress={() => setShowDatePicker(false)}>
-                <Text style={styles.optionCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
+  safe: { flex: 1, backgroundColor: '#F8FAFC' },
   header: {
     backgroundColor: COLORS.green500,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 28,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    paddingHorizontal: 24, paddingTop: 24, paddingBottom: 28,
+    borderBottomLeftRadius: 32, borderBottomRightRadius: 32,
   },
-  headerSub: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.white,
-    marginTop: 4,
-  },
-
+  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1 },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: COLORS.white, marginTop: 4 },
   scannerBox: {
-    backgroundColor: '#1E293B',
-    margin: 20,
-    borderRadius: 24,
-    height: 220,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
+    backgroundColor: '#1E293B', margin: 20, borderRadius: 24, height: 220,
+    alignItems: 'center', justifyContent: 'center', gap: 12, position: 'relative',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 8,
   },
-  scanHint: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    fontWeight: '500',
-  },
-  activateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    backgroundColor: COLORS.green500,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 99,
-  },
-  activateBtnText: {
-    fontSize: 13,
-    color: COLORS.white,
-    fontWeight: '600',
-  },
-
-  corner: {
-    position: 'absolute',
-    width: 32,
-    height: 32,
-    borderColor: COLORS.green400,
-    borderStyle: 'solid',
-  },
+  scanHint: { fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: '500' },
+  activateBtn: { flexDirection: 'row', alignItems: 'center', marginTop: 6, backgroundColor: COLORS.green500, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 99 },
+  activateBtnText: { fontSize: 13, color: COLORS.white, fontWeight: '600' },
+  corner: { position: 'absolute', width: 32, height: 32, borderColor: COLORS.green400, borderStyle: 'solid' },
   cornerTL: { top: 20, left: 20, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
   cornerTR: { top: 20, right: 20, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
   cornerBL: { bottom: 20, left: 20, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
   cornerBR: { bottom: 20, right: 20, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 12 },
-
-  orText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: COLORS.gray500,
-    marginVertical: 14,
-    fontWeight: '500',
-  },
-  manualBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    marginHorizontal: 20,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  manualBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray700,
-  },
-
-  formCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
-    marginHorizontal: 20,
-    marginTop: 8,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    overflow: 'hidden',
-  },
-  formRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  formRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  formLabel: {
-    width: 100,
-    fontSize: 13,
-    color: COLORS.gray500,
-    fontWeight: '500',
-  },
-  formValue: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  saveBtn: {
-    backgroundColor: COLORS.green500,
-    borderRadius: 16,
-    marginHorizontal: 20,
-    marginTop: 20,
-    paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: COLORS.green500,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  saveBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.white,
-  },
-  saveBtnDisabled: {
-    opacity: 0.6,
-  },
-  emptyLastScan: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    gap: 8,
-  },
-  emptyLastScanText: {
-    color: COLORS.gray500,
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  cameraContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  cameraOverlay: {
+  orText: { textAlign: 'center', fontSize: 12, color: COLORS.gray500, marginVertical: 14, fontWeight: '500' },
+  manualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.white, borderRadius: 16, marginHorizontal: 20, paddingVertical: 14, borderWidth: 1, borderColor: '#E2E8F0' },
+  manualBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.gray700 },
+  formCard: { backgroundColor: COLORS.white, borderRadius: 20, marginHorizontal: 20, marginTop: 8, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9', overflow: 'hidden' },
+  formRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
+  formRowBorder: { borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  formLabel: { width: 100, fontSize: 13, color: COLORS.gray500, fontWeight: '500' },
+  formValue: { flex: 1, fontSize: 14, fontWeight: '600' },
+  saveBtn: { backgroundColor: COLORS.green500, borderRadius: 16, marginHorizontal: 20, marginTop: 20, paddingVertical: 16, alignItems: 'center', shadowColor: COLORS.green500, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 4 },
+  saveBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.white },
+  saveBtnDisabled: { opacity: 0.6 },
+  emptyLastScan: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 24, gap: 8 },
+  emptyLastScanText: { color: COLORS.gray500, fontSize: 13, fontWeight: '500', textAlign: 'center' },
+  cameraContainer: { flex: 1, backgroundColor: '#000' },
+  cameraOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  cameraTopBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'rgba(0,0,0,0.45)' },
+  closeCameraBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  cameraTopText: { fontSize: 15, fontWeight: '600', color: COLORS.white },
+  viewfinder: { width: 260, height: 180, position: 'relative', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  scanLine: { position: 'absolute', width: '90%', height: 2, backgroundColor: COLORS.green400, borderRadius: 1, shadowColor: COLORS.green400, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 6, elevation: 4 },
+  cameraHint: { marginTop: 28, fontSize: 13, color: 'rgba(255,255,255,0.7)', textAlign: 'center', paddingHorizontal: 32 },
+  manualFallbackBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 32, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 99, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  manualFallbackText: { fontSize: 13, color: COLORS.white, fontWeight: '500' },
+  modalSafe: { flex: 1, backgroundColor: COLORS.white, position: 'relative' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.gray200 },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.gray700 },
+  modalScroll: { flex: 1, paddingTop: 8 },
+  fieldWrapper: { paddingHorizontal: 20, paddingTop: 16 },
+  inputLabel: { fontSize: 12, fontWeight: '600', color: COLORS.gray700, marginBottom: 6 },
+  input: { borderWidth: 1, borderColor: COLORS.gray300, borderRadius: 10, backgroundColor: COLORS.gray50, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: COLORS.gray700 },
+  selectInput: { minHeight: 46, borderWidth: 1, borderColor: COLORS.gray300, borderRadius: 10, backgroundColor: COLORS.gray50, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  selectText: { flex: 1, fontSize: 14, color: COLORS.gray700, fontWeight: '500' },
+  placeholderText: { color: COLORS.gray500, fontWeight: '400' },
+  quantityRow: { flexDirection: 'row', gap: 10 },
+  quantityAmount: { width: 92 },
+  quantityUnit: { flex: 1, minHeight: 46, borderWidth: 1, borderColor: COLORS.gray300, borderRadius: 10, backgroundColor: COLORS.gray50, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  helpText: { fontSize: 12, color: COLORS.gray500, marginHorizontal: 20, marginTop: 12, lineHeight: 17 },
+  
+  absoluteOverlay: {
     ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraTopBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  closeCameraBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraTopText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.white,
-  },
-  viewfinder: {
-    width: 260,
-    height: 180,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  scanLine: {
-    position: 'absolute',
-    width: '90%',
-    height: 2,
-    backgroundColor: COLORS.green400,
-    borderRadius: 1,
-    shadowColor: COLORS.green400,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  cameraHint: {
-    marginTop: 28,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
-  manualFallbackBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 32,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 99,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  manualFallbackText: {
-    fontSize: 13,
-    color: COLORS.white,
-    fontWeight: '500',
-  },
-
-  modalSafe: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.gray700,
-  },
-  modalScroll: {
-    flex: 1,
-    paddingTop: 8,
-  },
-  fieldWrapper: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.gray700,
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    borderRadius: 10,
-    backgroundColor: COLORS.gray50,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    color: COLORS.gray700,
-  },
-  selectInput: {
-    minHeight: 46,
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    borderRadius: 10,
-    backgroundColor: COLORS.gray50,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  selectText: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.gray700,
-    fontWeight: '500',
-  },
-  placeholderText: {
-    color: COLORS.gray500,
-    fontWeight: '400',
-  },
-  quantityRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  quantityAmount: {
-    width: 92,
-  },
-  quantityUnit: {
-    flex: 1,
-    minHeight: 46,
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    borderRadius: 10,
-    backgroundColor: COLORS.gray50,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  helpText: {
-    fontSize: 12,
-    color: COLORS.gray500,
-    marginHorizontal: 20,
-    marginTop: 12,
-    lineHeight: 17,
-  },
-  optionOverlay: {
-    flex: 1,
     backgroundColor: 'rgba(15,23,42,0.35)',
     justifyContent: 'flex-end',
+    zIndex: 999,
   },
-  optionSheet: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 18,
-    paddingBottom: 20,
+  dismissOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.gray700,
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-  },
-  optionRow: {
-    minHeight: 48,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.gray100,
-  },
-  optionText: {
-    fontSize: 14,
-    color: COLORS.gray700,
-    fontWeight: '500',
-  },
-  optionCancel: {
-    marginHorizontal: 20,
-    marginTop: 14,
-    borderRadius: 12,
-    backgroundColor: COLORS.gray100,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  optionCancelText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.gray700,
-  },
-  calendarSheet: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  calendarNav: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.gray100,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calendarTitle: {
-    flex: 1,
-    textAlign: 'center',
-    textTransform: 'capitalize',
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.gray700,
-  },
-  weekRow: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  weekDay: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.gray500,
-  },
-  daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  dayCell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-  },
-  dayCellSelected: {
-    backgroundColor: COLORS.green500,
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray700,
-  },
-  dayTextMuted: {
-    color: COLORS.gray300,
-  },
-  dayTextSelected: {
-    color: COLORS.white,
-  },
-  calendarActions: {
-    marginTop: 12,
-  },
-  clearDateButton: {
-    marginHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  clearDateText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.green600,
-  },
+  optionSheet: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 18, paddingBottom: 20, zIndex: 1000 },
+  optionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.gray700, paddingHorizontal: 20, paddingBottom: 10 },
+  optionRow: { minHeight: 48, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: COLORS.gray100 },
+  optionText: { fontSize: 14, color: COLORS.gray700, fontWeight: '500' },
+  optionCancel: { marginHorizontal: 20, marginTop: 14, borderRadius: 12, backgroundColor: COLORS.gray100, alignItems: 'center', paddingVertical: 12 },
+  optionCancelText: { fontSize: 14, fontWeight: '700', color: COLORS.gray700 },
+  calendarSheet: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, zIndex: 1000 },
+  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  calendarNav: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center' },
+  calendarTitle: { flex: 1, textAlign: 'center', textTransform: 'capitalize', fontSize: 16, fontWeight: '700', color: COLORS.gray700 },
+  weekRow: { flexDirection: 'row', marginBottom: 6 },
+  weekDay: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: COLORS.gray500 },
+  daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  dayCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  dayCellSelected: { backgroundColor: COLORS.green500 },
+  dayText: { fontSize: 14, fontWeight: '600', color: COLORS.gray700 },
+  dayTextMuted: { color: COLORS.gray300 },
+  dayTextSelected: { color: COLORS.white },
+  calendarActions: { marginTop: 12 },
+  clearDateButton: { marginHorizontal: 20, borderRadius: 12, borderWidth: 1, borderColor: COLORS.gray300, alignItems: 'center', paddingVertical: 12 },
+  clearDateText: { fontSize: 14, fontWeight: '700', color: COLORS.green600 },
 });
