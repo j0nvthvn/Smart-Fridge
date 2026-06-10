@@ -19,9 +19,45 @@ import { useInventory } from '../context/InventoryContext';
 
 const EMPTY_FORM = { name: '', category: '', expires: '', quantity: '', barcode: '' };
 
+// Constantes traídas de ScannerScreen para mantener la consistencia
+const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas', 'Verduras', 'Bebidas', 'Congelados', 'Despensa', 'Snacks', 'Otro'];
+const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatMonthLabel(date) {
+  return date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+}
+
+function buildCalendarDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const blanks = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+
+  const result = [];
+  for (let i = 0; i < blanks; i++) {
+    result.push({ key: `blank-${i}`, disabled: true });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    result.push({ key: `day-${d}`, day: d, dateStr: `${year}-${`${month + 1}`.padStart(2, '0')}-${`${d}`.padStart(2, '0')}` });
+  }
+  return result;
+}
+
 function getStatus(product) {
   if (!product.expires) {
     return { label: 'Sin fecha', color: COLORS.gray500, bg: COLORS.gray100 };
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(product.expires)) {
+    return { label: 'Fecha inválida', color: COLORS.red400, bg: COLORS.red50 };
   }
 
   const [year, month, day] = product.expires.split('-').map(Number);
@@ -34,8 +70,8 @@ function getStatus(product) {
 
   if (days < 0) return { label: 'Vencido', color: COLORS.red400, bg: COLORS.red50 };
   if (days === 0) return { label: 'Hoy', color: COLORS.red400, bg: COLORS.red50 };
-  if (days <= 2) return { label: `${days} dias`, color: COLORS.orange400, bg: COLORS.orange50 };
-  if (days <= 5) return { label: `${days} dias`, color: COLORS.green600, bg: COLORS.green50 };
+  if (days <= 2) return { label: `${days} días`, color: COLORS.orange400, bg: COLORS.orange50 };
+  if (days <= 5) return { label: `${days} días`, color: COLORS.green600, bg: COLORS.green50 };
 
   return { label: product.expires, color: COLORS.gray700, bg: COLORS.gray100 };
 }
@@ -55,6 +91,11 @@ export default function InventoryScreen() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Estados para los menús desplegables controlados
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+  const [showCalendarMenu, setShowCalendarMenu] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const filteredProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -76,12 +117,21 @@ export default function InventoryScreen() {
       quantity: product.quantity || '',
       barcode: product.barcode || '',
     });
+    // Resetear el mes del calendario al abrir basado en el producto o mes actual
+    if (product.expires && /^\d{4}-\d{2}-\d{2}$/.test(product.expires)) {
+      const [y, m] = product.expires.split('-').map(Number);
+      setCurrentMonth(new Date(y, m - 1, 1));
+    } else {
+      setCurrentMonth(new Date());
+    }
   }
 
   function closeEdit() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setSaving(false);
+    setShowCategoryMenu(false);
+    setShowCalendarMenu(false);
   }
 
   async function handleRefresh() {
@@ -95,14 +145,16 @@ export default function InventoryScreen() {
 
   async function handleSave() {
     if (!form.name.trim()) {
-      Alert.alert('Error', 'El nombre del producto es obligatorio.');
+      Alert.alert('Campos Obligatorios', 'Por favor ingresa el nombre del producto.');
       return;
     }
 
     setSaving(true);
-
     try {
-      await updateProduct(editing.id, form);
+      await updateProduct(editing.id, {
+        ...form,
+        expires: form.expires.trim() || null
+      });
       closeEdit();
       Alert.alert('Inventario', 'Producto actualizado correctamente.');
     } catch (saveError) {
@@ -132,6 +184,12 @@ export default function InventoryScreen() {
     );
   }
 
+  // Funciones de navegación del calendario personalizado
+  function changeMonth(direction) {
+    const next = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + direction, 1);
+    setCurrentMonth(next);
+  }
+
   function renderProduct({ item }) {
     const status = getStatus(item);
 
@@ -141,7 +199,7 @@ export default function InventoryScreen() {
           <View style={styles.productInfo}>
             <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
             <Text style={styles.productMeta} numberOfLines={1}>
-              {item.category || 'Sin categoria'} · {item.quantity || '1 unidad'}
+              {item.category || 'Sin categoría'} · {item.quantity || '1 unidad'}
             </Text>
           </View>
           <View style={[styles.statusChip, { backgroundColor: status.bg }]}>
@@ -153,16 +211,16 @@ export default function InventoryScreen() {
           <View style={styles.barcodeRow}>
             <Feather name="hash" size={13} color={COLORS.gray500} />
             <Text style={styles.barcodeText} numberOfLines={1}>
-              {item.barcode || 'Sin codigo'}
+              {item.barcode || 'Sin código'}
             </Text>
           </View>
 
           <View style={styles.actions}>
             <TouchableOpacity style={styles.iconButton} onPress={() => openEdit(item)}>
-              <Feather name="edit-2" size={16} color={COLORS.green600} />
+              <Feather name="edit-2" size={15} color={COLORS.green600} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconButton} onPress={() => handleDelete(item)}>
-              <Feather name="trash-2" size={16} color={COLORS.red400} />
+              <Feather name="trash-2" size={15} color={COLORS.red400} />
             </TouchableOpacity>
           </View>
         </View>
@@ -181,7 +239,7 @@ export default function InventoryScreen() {
         <Feather name="search" size={16} color={COLORS.gray500} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar producto, categoria o codigo"
+          placeholder="Buscar producto, categoría o código"
           placeholderTextColor={COLORS.gray500}
           value={query}
           onChangeText={setQuery}
@@ -225,57 +283,207 @@ export default function InventoryScreen() {
             <View style={styles.emptyState}>
               <Feather name="archive" size={30} color={COLORS.gray500} />
               <Text style={styles.stateTitle}>
-                {query ? 'Sin resultados' : 'Inventario vacio'}
+                {query ? 'Sin resultados' : 'Inventario vacío'}
               </Text>
               <Text style={styles.stateText}>
                 {query
-                  ? 'Prueba con otro nombre, categoria o codigo.'
-                  : 'Agrega productos desde la pestaña Escaner.'}
+                  ? 'Prueba con otro nombre, categoría o código.'
+                  : 'Agrega productos desde la pestaña Escáner.'}
               </Text>
             </View>
           }
         />
       )}
 
+      {/* MODAL CON SELECTORES DESPLEGABLES NATIVOS */}
       <Modal visible={!!editing} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalSafe}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Editar producto</Text>
-            <TouchableOpacity onPress={closeEdit}>
-              <Feather name="x" size={22} color={COLORS.gray700} />
+            <View>
+              <Text style={styles.modalTitle}>Editar Producto</Text>
+              <Text style={styles.modalSubTitle}>Modifica las propiedades del artículo</Text>
+            </View>
+            <TouchableOpacity style={styles.modalCloseCircle} onPress={closeEdit}>
+              <Feather name="x" size={18} color={COLORS.gray700} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
-            {[
-              { label: 'Nombre', key: 'name', placeholder: 'Ej: Leche entera 1L' },
-              { label: 'Categoria', key: 'category', placeholder: 'Ej: Lacteos' },
-              { label: 'Fecha de vencimiento', key: 'expires', placeholder: 'Ej: 2026-04-30' },
-              { label: 'Cantidad', key: 'quantity', placeholder: 'Ej: 1 unidad' },
-              { label: 'Codigo', key: 'barcode', placeholder: 'Ej: 7800000000000' },
-            ].map(field => (
-              <View key={field.key} style={styles.fieldWrapper}>
-                <Text style={styles.inputLabel}>{field.label}</Text>
+            
+            {/* Input: Nombre */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Nombre del artículo</Text>
+              <View style={styles.inputContainer}>
+                <Feather name="shopping-bag" size={16} color={COLORS.gray400} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  placeholder={field.placeholder}
-                  placeholderTextColor={COLORS.gray300}
-                  value={form[field.key]}
-                  onChangeText={value => setForm(current => ({ ...current, [field.key]: value }))}
-                  autoCapitalize={field.key === 'expires' || field.key === 'barcode' ? 'none' : 'sentences'}
+                  placeholder="Ej: Leche entera 1L"
+                  placeholderTextColor={COLORS.gray400}
+                  value={form.name}
+                  onChangeText={value => setForm(current => ({ ...current, name: value }))}
                 />
               </View>
-            ))}
+            </View>
+
+            {/* Selector Desplegable: Categoría */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Categoría</Text>
+              <TouchableOpacity 
+                style={styles.inputContainer} 
+                onPress={() => {
+                  setShowCategoryMenu(!showCategoryMenu);
+                  setShowCalendarMenu(false);
+                }}
+              >
+                <Feather name="tag" size={16} color={COLORS.gray400} style={styles.inputIcon} />
+                <Text style={[styles.inputTextValue, !form.category && { color: COLORS.gray400 }]}>
+                  {form.category || 'Selecciona una categoría'}
+                </Text>
+                <Feather 
+                  name={showCategoryMenu ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color={COLORS.gray500} 
+                  style={{ marginRight: 14 }} 
+                />
+              </TouchableOpacity>
+
+              {showCategoryMenu && (
+                <View style={styles.dropdownMenu}>
+                  {CATEGORIES.map(cat => (
+                    <TouchableOpacity 
+                      key={cat} 
+                      style={[styles.dropdownItem, form.category === cat && styles.dropdownItemSelected]}
+                      onPress={() => {
+                        setForm(current => ({ ...current, category: cat }));
+                        setShowCategoryMenu(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownItemText, form.category === cat && styles.dropdownItemTextSelected]}>
+                        {cat}
+                      </Text>
+                      {form.category === cat && <Feather name="check" size={14} color={COLORS.green600} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Selector Desplegable: Calendario de Vencimiento */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
+              <TouchableOpacity 
+                style={styles.inputContainer} 
+                onPress={() => {
+                  setShowCalendarMenu(!showCalendarMenu);
+                  setShowCategoryMenu(false);
+                }}
+              >
+                <Feather name="calendar" size={16} color={COLORS.gray400} style={styles.inputIcon} />
+                <Text style={[styles.inputTextValue, !form.expires && { color: COLORS.gray400 }]}>
+                  {form.expires || 'Selecciona una fecha'}
+                </Text>
+                <Feather 
+                  name={showCalendarMenu ? "chevron-up" : "chevron-down"} 
+                  size={16} 
+                  color={COLORS.gray500} 
+                  style={{ marginRight: 14 }} 
+                />
+              </TouchableOpacity>
+
+              {showCalendarMenu && (
+                <View style={styles.calendarContainer}>
+                  <View style={styles.calendarHeader}>
+                    <TouchableOpacity style={styles.calendarNav} onPress={() => changeMonth(-1)}>
+                      <Feather name="chevron-left" size={16} color={COLORS.gray700} />
+                    </TouchableOpacity>
+                    <Text style={styles.calendarTitle}>{formatMonthLabel(currentMonth)}</Text>
+                    <TouchableOpacity style={styles.calendarNav} onPress={() => changeMonth(1)}>
+                      <Feather name="chevron-right" size={16} color={COLORS.gray700} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.weekRow}>
+                    {WEEKDAYS.map((w, i) => (
+                      <Text key={i} style={styles.weekDay}>{w}</Text>
+                    ))}
+                  </View>
+
+                  <View style={styles.daysGrid}>
+                    {buildCalendarDays(currentMonth).map((cell) => {
+                      if (cell.disabled) {
+                        return <View key={cell.key} style={styles.dayCell} />;
+                      }
+                      const isSelected = form.expires === cell.dateStr;
+                      return (
+                        <TouchableOpacity
+                          key={cell.key}
+                          style={[styles.dayCell, isSelected && styles.dayCellSelected]}
+                          onPress={() => {
+                            setForm(current => ({ ...current, expires: cell.dateStr }));
+                            setShowCalendarMenu(false);
+                          }}
+                        >
+                          <Text style={[styles.dayText, isSelected && styles.dayTextSelected]}>
+                            {cell.day}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  
+                  <TouchableOpacity 
+                    style={styles.clearDateOption} 
+                    onPress={() => {
+                      setForm(current => ({ ...current, expires: '' }));
+                      setShowCalendarMenu(false);
+                    }}
+                  >
+                    <Text style={styles.clearDateText}>Quitar fecha de vencimiento</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* Input: Cantidad */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Cantidad disponible</Text>
+              <View style={styles.inputContainer}>
+                <Feather name="box" size={16} color={COLORS.gray400} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: 3 unidades"
+                  placeholderTextColor={COLORS.gray400}
+                  value={form.quantity}
+                  onChangeText={value => setForm(current => ({ ...current, quantity: value }))}
+                />
+              </View>
+            </View>
+
+            {/* Input: Código de barras */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Código de barras (SKU / EAN)</Text>
+              <View style={styles.inputContainer}>
+                <Feather name="bar-chart-2" size={16} color={COLORS.gray400} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: 7800000000000"
+                  placeholderTextColor={COLORS.gray400}
+                  value={form.barcode}
+                  onChangeText={value => setForm(current => ({ ...current, barcode: value }))}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
 
             <TouchableOpacity
               style={[styles.saveButton, saving && styles.disabledButton]}
               onPress={handleSave}
               disabled={saving}
             >
-              <Text style={styles.saveText}>{saving ? 'Guardando...' : 'Guardar cambios'}</Text>
+              <Text style={styles.saveText}>{saving ? 'Guardando cambios...' : 'Guardar cambios'}</Text>
             </TouchableOpacity>
 
-            <View style={{ height: 32 }} />
+            <View style={{ height: 40 }} />
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -442,53 +650,197 @@ const styles = StyleSheet.create({
   },
   modalSafe: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: '#FAFAFA',
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.gray200,
   },
   modalTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '700',
     color: COLORS.gray700,
   },
+  modalSubTitle: {
+    fontSize: 12,
+    color: COLORS.gray500,
+    marginTop: 2,
+  },
+  modalCloseCircle: {
+    backgroundColor: COLORS.gray100,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalScroll: {
     flex: 1,
-    paddingTop: 8,
   },
   fieldWrapper: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    marginTop: 16,
   },
   inputLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
     color: COLORS.gray700,
     marginBottom: 6,
+    paddingLeft: 2,
   },
-  input: {
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.gray300,
-    borderRadius: 10,
-    backgroundColor: COLORS.gray50,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    height: 48,
+    justifyContent: 'space-between',
+  },
+  inputTextValue: {
+    flex: 1,
     fontSize: 14,
     color: COLORS.gray700,
   },
+  inputIcon: {
+    paddingLeft: 14,
+    paddingRight: 10,
+  },
+  input: {
+    flex: 1,
+    height: '100%',
+    fontSize: 14,
+    color: COLORS.gray700,
+    paddingRight: 14,
+  },
+  dropdownMenu: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dropdownItemSelected: {
+    backgroundColor: COLORS.green50 / 2,
+  },
+  dropdownItemText: {
+    fontSize: 14,
+    color: COLORS.gray700,
+  },
+  dropdownItemTextSelected: {
+    fontWeight: '600',
+    color: COLORS.green600,
+  },
+  calendarContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  calendarNav: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: COLORS.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarTitle: {
+    flex: 1,
+    textAlign: 'center',
+    textTransform: 'capitalize',
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.gray700,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  weekDay: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.gray500,
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayCell: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
+  dayCellSelected: {
+    backgroundColor: COLORS.green500,
+  },
+  dayText: {
+    fontSize: 14,
+    color: COLORS.gray700,
+  },
+  dayTextSelected: {
+    color: COLORS.white,
+    fontWeight: '700',
+  },
+  clearDateOption: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray100,
+    alignItems: 'center',
+  },
+  clearDateText: {
+    fontSize: 13,
+    color: COLORS.red400,
+    fontWeight: '500',
+  },
   saveButton: {
     backgroundColor: COLORS.green500,
-    borderRadius: 16,
+    borderRadius: 14,
     marginHorizontal: 20,
-    marginTop: 24,
-    paddingVertical: 16,
+    marginTop: 32,
+    height: 52,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.green500,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   disabledButton: {
     opacity: 0.65,
