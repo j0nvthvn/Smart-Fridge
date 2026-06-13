@@ -18,6 +18,46 @@ import { COLORS } from '../constants/colors';
 import { useInventory } from '../context/InventoryContext';
 
 const EMPTY_FORM = { name: '', category: '', expires: '', quantity: '', barcode: '' };
+const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas', 'Verduras', 'Bebidas', 'Congelados', 'Despensa', 'Snacks', 'Otro'];
+const QUANTITY_UNITS = ['unidades', 'paquetes', 'cajas', 'botellas', 'bolsas', 'kg', 'g', 'L', 'ml'];
+const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatMonthLabel(date) {
+  return date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
+}
+
+function buildCalendarDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const startDate = new Date(year, month, 1 - startOffset);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    return date;
+  });
+}
+
+function parseQuantity(quantity) {
+  const [amount = '1', ...unitParts] = (quantity || '1 unidades').split(' ');
+  return {
+    amount,
+    unit: unitParts.join(' ') || 'unidades',
+  };
+}
+
+function buildQuantity(amount, unit) {
+  return `${amount || '1'} ${unit || 'unidades'}`;
+}
 
 function getStatus(product) {
   if (!product.expires) {
@@ -51,29 +91,41 @@ export default function InventoryScreen() {
   } = useInventory();
 
   const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showUnitPicker, setShowUnitPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+
+  const quantityParts = parseQuantity(form.quantity);
+  const calendarDays = buildCalendarDays(calendarMonth);
 
   const filteredProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return products;
-
-    return products.filter(product => (
-      product.name?.toLowerCase().includes(term)
-      || product.category?.toLowerCase().includes(term)
-      || product.barcode?.toLowerCase().includes(term)
-    ));
-  }, [products, query]);
+    return products.filter(product => {
+      const matchesQuery = !term || (
+        product.name?.toLowerCase().includes(term)
+        || product.category?.toLowerCase().includes(term)
+        || product.barcode?.toLowerCase().includes(term)
+      );
+      const matchesCategory = !selectedCategory || product.category === selectedCategory;
+      return matchesQuery && matchesCategory;
+    });
+  }, [products, query, selectedCategory]);
 
   function openEdit(product) {
+    const expires = product.expires ? new Date(product.expires) : new Date();
+    setCalendarMonth(Number.isNaN(expires.getTime()) ? new Date() : expires);
     setEditing(product);
     setForm({
       name: product.name || '',
       category: product.category || '',
       expires: product.expires || '',
-      quantity: product.quantity || '',
+      quantity: product.quantity || '1 unidades',
       barcode: product.barcode || '',
     });
   }
@@ -82,6 +134,9 @@ export default function InventoryScreen() {
     setEditing(null);
     setForm(EMPTY_FORM);
     setSaving(false);
+    setShowCategoryPicker(false);
+    setShowUnitPicker(false);
+    setShowDatePicker(false);
   }
 
   async function handleRefresh() {
@@ -194,6 +249,29 @@ export default function InventoryScreen() {
         ) : null}
       </View>
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipsScroll}
+        contentContainerStyle={styles.chipsContent}
+      >
+        <TouchableOpacity
+          style={[styles.chip, !selectedCategory && styles.chipActive]}
+          onPress={() => setSelectedCategory(null)}
+        >
+          <Text style={[styles.chipText, !selectedCategory && styles.chipTextActive]}>Todos</Text>
+        </TouchableOpacity>
+        {CATEGORIES.map(cat => (
+          <TouchableOpacity
+            key={cat}
+            style={[styles.chip, selectedCategory === cat && styles.chipActive]}
+            onPress={() => setSelectedCategory(prev => prev === cat ? null : cat)}
+          >
+            <Text style={[styles.chipText, selectedCategory === cat && styles.chipTextActive]}>{cat}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {loading ? (
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={COLORS.green500} />
@@ -225,10 +303,10 @@ export default function InventoryScreen() {
             <View style={styles.emptyState}>
               <Feather name="archive" size={30} color={COLORS.gray500} />
               <Text style={styles.stateTitle}>
-                {query ? 'Sin resultados' : 'Inventario vacio'}
+                {query || selectedCategory ? 'Sin resultados' : 'Inventario vacio'}
               </Text>
               <Text style={styles.stateText}>
-                {query
+                {query || selectedCategory
                   ? 'Prueba con otro nombre, categoria o codigo.'
                   : 'Agrega productos desde la pestaña Escaner.'}
               </Text>
@@ -247,25 +325,75 @@ export default function InventoryScreen() {
           </View>
 
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
-            {[
-              { label: 'Nombre', key: 'name', placeholder: 'Ej: Leche entera 1L' },
-              { label: 'Categoria', key: 'category', placeholder: 'Ej: Lacteos' },
-              { label: 'Fecha de vencimiento', key: 'expires', placeholder: 'Ej: 2026-04-30' },
-              { label: 'Cantidad', key: 'quantity', placeholder: 'Ej: 1 unidad' },
-              { label: 'Codigo', key: 'barcode', placeholder: 'Ej: 7800000000000' },
-            ].map(field => (
-              <View key={field.key} style={styles.fieldWrapper}>
-                <Text style={styles.inputLabel}>{field.label}</Text>
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Nombre del producto</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Leche entera 1L"
+                placeholderTextColor={COLORS.gray300}
+                value={form.name}
+                onChangeText={v => setForm(f => ({ ...f, name: v }))}
+              />
+            </View>
+
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Categoría</Text>
+              <TouchableOpacity style={styles.selectInput} onPress={() => setShowCategoryPicker(true)}>
+                <Text style={[styles.selectText, !form.category && styles.placeholderText]}>
+                  {form.category || 'Selecciona una categoría'}
+                </Text>
+                <Feather name="chevron-down" size={18} color={COLORS.gray500} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
+              <TouchableOpacity style={styles.selectInput} onPress={() => setShowDatePicker(true)}>
+                <Text style={[styles.selectText, !form.expires && styles.placeholderText]}>
+                  {form.expires || 'Selecciona una fecha'}
+                </Text>
+                <Feather name="calendar" size={18} color={COLORS.gray500} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Cantidad</Text>
+              <View style={styles.quantityRow}>
                 <TextInput
-                  style={styles.input}
-                  placeholder={field.placeholder}
+                  style={[styles.input, styles.quantityAmount]}
+                  placeholder="1"
                   placeholderTextColor={COLORS.gray300}
-                  value={form[field.key]}
-                  onChangeText={value => setForm(current => ({ ...current, [field.key]: value }))}
-                  autoCapitalize={field.key === 'expires' || field.key === 'barcode' ? 'none' : 'sentences'}
+                  keyboardType="numeric"
+                  value={quantityParts.amount}
+                  onChangeText={value => {
+                    const cleanValue = value.replace(/[^0-9.]/g, '');
+                    setForm(f => ({
+                      ...f,
+                      quantity: buildQuantity(cleanValue, parseQuantity(f.quantity).unit),
+                    }));
+                  }}
                 />
+                <TouchableOpacity style={styles.quantityUnit} onPress={() => setShowUnitPicker(true)}>
+                  <Text style={styles.selectText}>{quantityParts.unit}</Text>
+                  <Feather name="chevron-down" size={18} color={COLORS.gray500} />
+                </TouchableOpacity>
               </View>
-            ))}
+            </View>
+
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.inputLabel}>Código</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 7800000000000"
+                placeholderTextColor={COLORS.gray300}
+                keyboardType="default"
+                value={form.barcode}
+                onChangeText={v => setForm(f => ({ ...f, barcode: v }))}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <Text style={styles.helpText}>La fecha se guarda en formato AAAA-MM-DD para activar alertas de vencimiento.</Text>
 
             <TouchableOpacity
               style={[styles.saveButton, saving && styles.disabledButton]}
@@ -278,6 +406,133 @@ export default function InventoryScreen() {
             <View style={{ height: 32 }} />
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      <Modal visible={showCategoryPicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.optionSheet}>
+            <Text style={styles.optionTitle}>Seleccionar categoría</Text>
+            {CATEGORIES.map(category => (
+              <TouchableOpacity
+                key={category}
+                style={styles.optionRow}
+                onPress={() => {
+                  setForm(f => ({ ...f, category }));
+                  setShowCategoryPicker(false);
+                }}
+              >
+                <Text style={styles.optionText}>{category}</Text>
+                {form.category === category ? (
+                  <Feather name="check" size={18} color={COLORS.green600} />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
+              <Text style={styles.optionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showUnitPicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.optionSheet}>
+            <Text style={styles.optionTitle}>Tipo de cantidad</Text>
+            {QUANTITY_UNITS.map(unit => (
+              <TouchableOpacity
+                key={unit}
+                style={styles.optionRow}
+                onPress={() => {
+                  setForm(f => ({
+                    ...f,
+                    quantity: buildQuantity(parseQuantity(f.quantity).amount, unit),
+                  }));
+                  setShowUnitPicker(false);
+                }}
+              >
+                <Text style={styles.optionText}>{unit}</Text>
+                {quantityParts.unit === unit ? (
+                  <Feather name="check" size={18} color={COLORS.green600} />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowUnitPicker(false)}>
+              <Text style={styles.optionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showDatePicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.calendarSheet}>
+            <View style={styles.calendarHeader}>
+              <TouchableOpacity
+                style={styles.calendarNav}
+                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+              >
+                <Feather name="chevron-left" size={20} color={COLORS.gray700} />
+              </TouchableOpacity>
+              <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
+              <TouchableOpacity
+                style={styles.calendarNav}
+                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+              >
+                <Feather name="chevron-right" size={20} color={COLORS.gray700} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.weekRow}>
+              {WEEKDAYS.map((day, index) => (
+                <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
+              ))}
+            </View>
+
+            <View style={styles.daysGrid}>
+              {calendarDays.map(date => {
+                const dateValue = formatDate(date);
+                const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
+                const selected = form.expires === dateValue;
+
+                return (
+                  <TouchableOpacity
+                    key={dateValue}
+                    style={[styles.dayCell, selected && styles.dayCellSelected]}
+                    onPress={() => {
+                      setForm(f => ({ ...f, expires: dateValue }));
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        !inCurrentMonth && styles.dayTextMuted,
+                        selected && styles.dayTextSelected,
+                      ]}
+                    >
+                      {date.getDate()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.calendarActions}>
+              <TouchableOpacity
+                style={styles.clearDateButton}
+                onPress={() => {
+                  setForm(f => ({ ...f, expires: '' }));
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={styles.clearDateText}>Sin fecha</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.optionCancel} onPress={() => setShowDatePicker(false)}>
+                <Text style={styles.optionCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -330,6 +585,35 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+  },
+  chipsScroll: {
+    flexGrow: 0,
+    marginBottom: 6,
+  },
+  chipsContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+  },
+  chipActive: {
+    backgroundColor: COLORS.green500,
+    borderColor: COLORS.green500,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.gray700,
+  },
+  chipTextActive: {
+    color: COLORS.white,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -497,5 +781,182 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
     fontSize: 15,
+  },
+  selectInput: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    borderRadius: 10,
+    backgroundColor: COLORS.gray50,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  selectText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.gray700,
+    fontWeight: '500',
+  },
+  placeholderText: {
+    color: COLORS.gray500,
+    fontWeight: '400',
+  },
+  quantityRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quantityAmount: {
+    width: 92,
+  },
+  quantityUnit: {
+    flex: 1,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    borderRadius: 10,
+    backgroundColor: COLORS.gray50,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  helpText: {
+    fontSize: 12,
+    color: COLORS.gray500,
+    marginHorizontal: 20,
+    marginTop: 12,
+    lineHeight: 17,
+  },
+  optionOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.35)',
+    justifyContent: 'flex-end',
+  },
+  optionSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 18,
+    paddingBottom: 20,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.gray700,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  optionRow: {
+    minHeight: 48,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray100,
+  },
+  optionText: {
+    fontSize: 14,
+    color: COLORS.gray700,
+    fontWeight: '500',
+  },
+  optionCancel: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    borderRadius: 12,
+    backgroundColor: COLORS.gray100,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  optionCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.gray700,
+  },
+  calendarSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  calendarNav: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarTitle: {
+    flex: 1,
+    textAlign: 'center',
+    textTransform: 'capitalize',
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.gray700,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  weekDay: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.gray500,
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayCell: {
+    width: `${100 / 7}%`,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  dayCellSelected: {
+    backgroundColor: COLORS.green500,
+  },
+  dayText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.gray700,
+  },
+  dayTextMuted: {
+    color: COLORS.gray300,
+  },
+  dayTextSelected: {
+    color: COLORS.white,
+  },
+  calendarActions: {
+    marginTop: 12,
+  },
+  clearDateButton: {
+    marginHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  clearDateText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.green600,
   },
 });
