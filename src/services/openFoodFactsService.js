@@ -6,7 +6,7 @@ export const getProductByBarcode = async (barcode) => {
 
   try {
     const response = await fetch(
-      `${BASE_URL}/product/${barcode}?fields=product_name,product_name_es,brands,quantity,categories_tags`,
+      `${BASE_URL}/product/${barcode}?fields=product_name,product_name_es,brands`,
       { signal: controller.signal },
     );
 
@@ -20,8 +20,6 @@ export const getProductByBarcode = async (barcode) => {
     return {
       name: p.product_name_es || p.product_name || '',
       brand: p.brands || '',
-      quantity: p.quantity || '',
-      categories: p.categories_tags || [],
     };
   } finally {
     clearTimeout(timeout);

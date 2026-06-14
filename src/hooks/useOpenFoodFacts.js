@@ -9,10 +9,11 @@ export const useOpenFoodFacts = () => {
     setLoadingProduct(true);
     setErrorProduct(null);
     try {
-      return await getProductByBarcode(barcode);
+      const product = await getProductByBarcode(barcode);
+      return { product, error: null };
     } catch (err) {
       setErrorProduct(err.message);
-      return null;
+      return { product: null, error: err.message };
     } finally {
       setLoadingProduct(false);
     }

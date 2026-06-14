@@ -26,12 +26,14 @@ La aplicación busca resolver problemas comunes como:
 
 ## Estado actual del proyecto
 
-Actualmente la aplicación cuenta con un MVP funcional que incluye:
+La aplicación se encuentra en Sprint 2. Cuenta con un MVP funcional que incluye:
 
 - Inicio de sesión y registro de usuarios mediante Supabase Auth.
 - Persistencia de sesión local con AsyncStorage.
 - Registro manual de productos.
 - Escaneo de códigos de barra y QR mediante cámara.
+- Consulta automática de nombre y marca del producto escaneado usando la API de Open Food Facts.
+- Categorización de productos con íconos y colores por categoría.
 - Inventario persistente en Supabase.
 - Visualización de productos guardados.
 - Edición y eliminación de productos.
@@ -46,10 +48,11 @@ Actualmente la aplicación cuenta con un MVP funcional que incluye:
 - Supabase
 - Supabase Auth
 - PostgreSQL
-- Row Level Security, RLS
+- Row Level Security (RLS)
 - AsyncStorage
 - Expo Camera
 - React Navigation
+- Open Food Facts API
 
 ## Funcionalidades principales
 
@@ -82,10 +85,10 @@ La pantalla de inventario permite:
 
 La pantalla de escáner permite registrar productos de dos formas:
 
-- Escaneo de código de barras o QR usando la cámara del dispositivo.
+- Escaneo de código de barras usando la cámara del dispositivo. Al detectar un código, la app consulta la API de Open Food Facts para obtener automáticamente el nombre y la marca del producto.
 - Ingreso manual de producto mediante formulario.
 
-Los productos registrados se almacenan en Supabase asociados al usuario autenticado.
+Los productos registrados se almacenan en Supabase asociados al usuario autenticado. Cada producto puede tener asignada una categoría (Lácteos, Carnes, Frutas, Verduras, Bebidas, Congelados, Despensa, Snacks u Otro), que se muestra con un ícono y color representativo en el inventario.
 
 ### Cuenta
 
@@ -116,7 +119,10 @@ React Native + Expo
   |     - Persistencia local de sesión
   |
   |-- Cámara del dispositivo
-        - Escaneo de códigos de barra / QR
+  |     - Escaneo de códigos de barra / QR
+  |
+  |-- Open Food Facts API
+        - Consulta de nombre y marca por código de barras
 ```
 
 ## Modelo C4
@@ -141,8 +147,9 @@ Los principales contenedores de la plataforma son:
 | App móvil SmartFridge | React Native + Expo | Interfaz de usuario, navegación, escáner, formularios e inventario |
 | Supabase Auth | Supabase | Registro, login y sesión de usuarios |
 | Base de datos | PostgreSQL en Supabase | Persistencia de productos, perfiles y vencimientos |
-| AsyncStorage | React Native AsyncStorage | Persistencia local de sesión y datos legacy |
+| AsyncStorage | React Native AsyncStorage | Persistencia local de sesión |
 | Cámara del dispositivo | Expo Camera | Lectura de códigos de barra y QR |
+| Open Food Facts API | API REST pública | Consulta de nombre y marca de productos por código de barras |
 | Servicio OCR/IA | Por definir | Procesamiento futuro de boletas |
 | Notificaciones push | Por definir | Alertas futuras de vencimiento |
 
@@ -161,10 +168,13 @@ Smart-Fridge/
     │   ├── SectionHeader.js
     │   └── SettingsRow.js
     ├── constants/
+    │   ├── categories.js        # Categorías de productos con íconos y colores
     │   └── colors.js
     ├── context/
     │   ├── AuthContext.js
     │   └── InventoryContext.js
+    ├── hooks/
+    │   └── useOpenFoodFacts.js  # Hook para consulta de productos por código de barras
     ├── screens/
     │   ├── HomeScreen.js
     │   ├── InventoryScreen.js
@@ -172,8 +182,11 @@ Smart-Fridge/
     │   ├── SettingsScreen.js
     │   ├── LoginScreen.js
     │   └── RegisterScreen.js
-    └── services/
-        └── supabase.js
+    ├── services/
+    │   ├── openFoodFactsService.js  # Integración con la API de Open Food Facts
+    │   └── supabase.js
+    ├── types/                   # Tipos y definiciones (en expansión)
+    └── utils/                   # Funciones utilitarias (en expansión)
 ```
 
 ## Requisitos
@@ -260,33 +273,78 @@ npm run doctor
 - Fondo: `#F8F9FA`
 - Blanco: `#FFFFFF`
 
-## Sprint 1 — Avance
+## Sprint 1 — Completado
 
-Durante el Sprint 1 se logró construir la base funcional de la aplicación:
+Durante el Sprint 1 se construyó la base funcional de la aplicación. Objetivo: crear la interfaz visual base (paleta verde/blanca) y desarrollar la autenticación para que los usuarios puedan registrarse e iniciar sesión.
 
-- Estructura inicial del proyecto.
-- Navegación principal por pestañas.
-- Pantallas principales de la app.
-- Registro e inicio de sesión con Supabase.
-- Integración inicial con base de datos.
-- Registro de productos.
-- Escáner con cámara.
-- Inventario persistente.
-- Alertas de vencimiento.
-- CRUD básico de productos.
+Tareas completadas (todas en estado Done):
 
-## Sprint 2 — Próximos pasos
+- Maquear Home (Verde/Blanco) — Jonathan, 1 pt
+- Vistas Escáner y Ajustes — Jonathan, 2 pts
+- Navegación principal por pestañas — Jonathan, 2 pts
+- Alertas de vencimiento en Home — Jonathan, 2 pts
+- Mejoras UI (paleta y pantallas) — Jonathan, 2 pts
+- Documentación README — Jonathan, 3 pts
+- Login y Registro — Patricio, 3 pts
+- Base de datos (products.sql, RLS) — Patricio, 3 pts
+- Contexto de inventario + Supabase — Patricio, 3 pts
+- Pantalla de inventario (CRUD) — Patricio, 3 pts
+- Mejoras escáner y código de barras — Patricio, 3 pts
 
-Para el Sprint 2 se propone avanzar en:
+## Sprint 2 — Completado
 
-- Integración de OCR o IA para lectura de boletas.
-- Mejoras en la experiencia de usuario del inventario.
+### Objetivo del Sprint 2
+
+Organizar y mejorar la experiencia del inventario: categorizar productos, permitir monitorear vencimientos de forma visual, integrar Open Food Facts para autocompletar datos al escanear, y robustecer la app con validación de formularios y manejo de errores.
+
+Historias de usuario atendidas (User Story Map Sprint 2):
+
+- **H.U. Módulo 1** — Como usuario que quiere identificar sus productos por categoría, quiero poder filtrar mis productos para organizarlos por categorías. *(sistema de categorías con íconos y colores)*
+- **H.U. Módulo 2** — Como usuario que quiere organizar cuándo caducan sus productos, quiero monitorear y consultar el inventario visualmente. *(ordenamiento por vencimiento, chips de estado, alertas)*
+- **H.U. Módulo 3** — Como usuario con dudas de alimentos caducados, quiero recibir asistencia sobre el estado de mis productos. *(manejo de errores, validación, mensajes claros)*
+- **H.U. Módulo 4** — Como usuario que planifica sus compras mensuales, quiero generar una lista automática de productos por vencer o terminados. *(base para Sprint 3)*
+
+### Completado en Sprint 2
+
+- Integración con la API de Open Food Facts para obtener nombre y marca al escanear un código de barras.
+- Sistema de categorías de productos con íconos y colores diferenciados por categoría.
+- Refactorización del servicio de escáner en hook reutilizable (`useOpenFoodFacts`).
+- Manejo centralizado de errores de red y Supabase (`errorUtils.js`) con mensajes en español.
+- Validación de formularios en escáner e inventario: nombre requerido con feedback visual (borde rojo), fecha en formato AAAA-MM-DD, cantidad mayor a 0.
+- Ordenamiento del inventario por tres criterios: más reciente, por fecha de vencimiento (ascendente) y alfabético A–Z.
+- Documentación técnica actualizada (README, src/).
+
+### Pendiente / Sprint 3
+
+Según el Product Backlog priorizado y User Story Map actualizado en Lucid:
+
+- **Alta prioridad**: Organización de productos — filtrado avanzado y mejoras de categorización.
+- **Alta prioridad**: Monitoreo y consulta — calendario visual de vencimientos.
+- **Media prioridad**: Lista de compras inteligente a partir de productos por vencer o terminados.
+- **Media prioridad**: Visualización — accesibilidad para usuarios con dificultad visual.
+- **Baja prioridad**: Información de seguridad alimentaria — indicador de si es seguro consumir productos caducados (requiere base de datos externa).
 - Notificaciones push para productos próximos a vencer.
-- Mejoras en validación de formularios.
-- Mejor manejo de errores de red y Supabase.
-- Documentación más completa de instalación y configuración.
 - Pruebas manuales de los flujos principales.
-- Preparación de demo estable para presentación.
+
+## Sprint 2 — Retrospectiva
+
+### Lo que funcionó bien
+
+- La integración con Open Food Facts redujo significativamente el tiempo de registro de productos escaneados.
+- La separación en hook (`useOpenFoodFacts`) hizo el código más reutilizable y fácil de testear.
+- El sistema de categorías mejoró visualmente la lectura del inventario.
+
+### Problemas identificados
+
+- El montaje virtiofs del workspace causó desfase entre las herramientas de archivo y bash, bloqueando temporalmente la escritura de `InventoryScreen.js`. Se resolvió escribiendo directamente vía Python en el mount.
+- La validación de formularios estaba ausente, permitiendo guardar productos sin nombre o con fechas inválidas.
+- Los errores de red de Supabase se mostraban como mensajes técnicos en inglés, sin orientación para el usuario.
+
+### Acciones de mejora para Sprint 3
+
+- Agregar pruebas manuales sistemáticas antes de cada entrega.
+- Definir criterios de aceptación por historia de usuario antes de comenzar el desarrollo.
+- Priorizar notificaciones push como primera tarea del siguiente sprint.
 
 ## Roadmap
 
@@ -300,10 +358,15 @@ Para el Sprint 2 se propone avanzar en:
 - [x] Implementar escáner con Expo Camera.
 - [x] Implementar inventario.
 - [x] Implementar edición y eliminación de productos.
-- [ ] Integrar OCR/IA para boletas.
+- [x] Integrar Open Food Facts para autocompletar nombre y marca al escanear.
+- [x] Implementar categorías de productos con íconos y colores.
+- [x] Manejo de errores de red y Supabase con mensajes en español.
+- [x] Validación de formularios con feedback visual (nombre requerido, fecha, cantidad).
+- [x] Ordenamiento del inventario (reciente, por vencer, A–Z).
 - [ ] Implementar notificaciones push.
-- [ ] Agregar pruebas.
-- [ ] Mejorar documentación técnica.
+- [ ] Lista de compras inteligente (productos por vencer o terminados).
+- [ ] Integrar OCR/IA para boletas.
+- [ ] Agregar pruebas automatizadas.
 - [ ] Preparar despliegue o build de entrega.
 
 ## Consideraciones de seguridad
@@ -316,10 +379,9 @@ Para el Sprint 2 se propone avanzar en:
 
 ## Limitaciones actuales
 
+- La consulta a Open Food Facts requiere conexión a internet y puede no encontrar productos locales o poco comunes.
 - El procesamiento OCR de boletas aún no está implementado.
 - Las notificaciones push aún no están implementadas.
-- La app todavía está en etapa MVP.
-- La clasificación automática de productos todavía debe ser definida.
 - Falta incorporar pruebas automatizadas.
 
 ## Licencia

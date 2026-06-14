@@ -12,7 +12,6 @@ import { useAuth } from '../context/AuthContext';
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [daysWarning, setDaysWarning] = useState(3);
 
   function handleLogout() {
@@ -105,12 +104,7 @@ export default function SettingsScreen() {
             iconColor={COLORS.blue700}
             label="Modo oscuro"
             right={
-              <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
-                trackColor={{ false: COLORS.gray300, true: COLORS.green500 }}
-                thumbColor={COLORS.white}
-              />
+              <Text style={styles.comingSoonText}>Próximamente</Text>
             }
           />
         </View>
@@ -218,6 +212,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.gray700,
     fontWeight: '600',
+  },
+  comingSoonText: {
+    fontSize: 11,
+    color: COLORS.gray400,
+    fontStyle: 'italic',
   },
   version: {
     textAlign: 'center',

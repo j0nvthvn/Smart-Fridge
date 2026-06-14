@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
+import { parseSupabaseError } from '../utils/errorUtils';
 
 const LEGACY_STORAGE_KEY = '@smartfridge/inventory';
 const PRODUCT_COLUMNS = 'id, name, category, expires, quantity, barcode, created_at';
@@ -147,7 +148,7 @@ export function InventoryProvider({ children }) {
       setError(null);
     } catch (loadError) {
       setProducts([]);
-      setError(loadError.message || 'No se pudo cargar el inventario.');
+      setError(parseSupabaseError(loadError));
     } finally {
       setLoading(false);
     }
@@ -170,7 +171,7 @@ export function InventoryProvider({ children }) {
       .select(PRODUCT_COLUMNS)
       .single();
 
-    if (insertError) throw insertError;
+    if (insertError) throw new Error(parseSupabaseError(insertError));
 
     setProducts(current => [data, ...current]);
     setError(null);
@@ -194,7 +195,7 @@ export function InventoryProvider({ children }) {
       .select(PRODUCT_COLUMNS)
       .single();
 
-    if (updateError) throw updateError;
+    if (updateError) throw new Error(parseSupabaseError(updateError));
 
     setProducts(current => current.map(item => (item.id === productId ? data : item)));
     setError(null);
@@ -213,7 +214,7 @@ export function InventoryProvider({ children }) {
       .eq('id', productId)
       .eq('user_id', user.id);
 
-    if (deleteError) throw deleteError;
+    if (deleteError) throw new Error(parseSupabaseError(deleteError));
 
     setProducts(current => current.filter(item => item.id !== productId));
     setError(null);

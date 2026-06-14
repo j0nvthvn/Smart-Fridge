@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -19,10 +19,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
-  Inicio:  'home',
+  Inicio:     'home',
   Inventario: 'archive',
-  Escáner: 'maximize',
-  Cuenta:  'user',
+  Cuenta:     'user',
 };
 
 function MainTabs() {
@@ -46,7 +45,9 @@ function MainTabs() {
             fontWeight: '500',
           },
           tabBarIcon: ({ color }) => (
-            <Feather name={TAB_ICONS[route.name]} size={20} color={color} />
+            route.name === 'Escáner'
+              ? <MaterialCommunityIcons name="barcode-scan" size={22} color={color} />
+              : <Feather name={TAB_ICONS[route.name]} size={20} color={color} />
           ),
         })}
       >

@@ -1,18 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, TextInput, Modal, Alert, Animated,
+  ScrollView, TextInput, Modal, Alert, Animated, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
 import { useInventory } from '../context/InventoryContext';
 import { useOpenFoodFacts } from '../hooks/useOpenFoodFacts';
+import { CATEGORIES, getCategoryConfig } from '../constants/categories';
 
 const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '', barcode: '' };
-const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas', 'Verduras', 'Bebidas', 'Congelados', 'Despensa', 'Snacks', 'Otro'];
 const QUANTITY_UNITS = ['unidades', 'paquetes', 'cajas', 'botellas', 'bolsas', 'kg', 'g', 'L', 'ml'];
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
@@ -54,6 +55,8 @@ function buildQuantity(amount, unit) {
 }
 
 export default function ScannerScreen() {
+  const navigation = useNavigation();
+  const route = useRoute();
   const { addProduct, products } = useInventory();
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive]   = useState(false);
@@ -63,6 +66,7 @@ export default function ScannerScreen() {
   const [showManual, setShowManual] = useState(false);
   const [product, setProduct]       = useState(EMPTY_PRODUCT);
   const [saving, setSaving]         = useState(false);
+  const [nameError, setNameError]   = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -80,6 +84,14 @@ export default function ScannerScreen() {
     const currentProduct = products.find(item => item.id === lastScanned.id);
     setLastScanned(currentProduct || null);
   }, [products, lastScanned?.id]);
+
+  useEffect(() => {
+    if (route.params?.openManual) {
+      openManualForm();
+      navigation.setParams({ openManual: undefined });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.params?.openManual]);
 
   function startPulse() {
     Animated.loop(
@@ -125,6 +137,7 @@ export default function ScannerScreen() {
     setShowUnitPicker(false);
     setShowDatePicker(false);
     setProduct(EMPTY_PRODUCT);
+    setNameError(false);
   }
 
   async function handleBarcodeScanned({ type, data }) {
@@ -133,47 +146,53 @@ export default function ScannerScreen() {
     setCameraActive(false);
     pulseAnim.stopAnimation();
 
-    const found = await fetchProductByBarcode(data);
+    const { product: found, error: apiError } = await fetchProductByBarcode(data);
 
-    if (found) {
-      openManualForm({
-        ...EMPTY_PRODUCT,
-        barcode: data,
-        name: found.name,
-        quantity: found.quantity || '1 unidades',
-        category: '',
-      });
+    if (apiError) {
+      Alert.alert(
+        'Error de conexión',
+        'No se pudo consultar la base de datos. Completa los datos manualmente.',
+        [{ text: 'OK', onPress: () => openManualForm({ ...EMPTY_PRODUCT, barcode: data, quantity: '1 unidades' }) }],
+      );
+    } else if (found) {
+      const nextProduct = { ...EMPTY_PRODUCT, barcode: data, name: found.name, quantity: '1 unidades', category: '' };
       Alert.alert(
         '¡Producto encontrado!',
         `Se encontró "${found.name}"${found.brand ? ` de ${found.brand}` : ''}.\nRevisa y completa los datos.`,
-        [{ text: 'OK' }],
+        [{ text: 'OK', onPress: () => openManualForm(nextProduct) }],
       );
     } else {
-      openManualForm({ ...EMPTY_PRODUCT, barcode: data, quantity: '1 unidades' });
       Alert.alert(
-        '¡Código detectado!',
+        'Código detectado',
         `Código: ${data}\n\nProducto no encontrado en la base de datos. Completa los datos manualmente.`,
-        [{ text: 'OK' }],
+        [{ text: 'OK', onPress: () => openManualForm({ ...EMPTY_PRODUCT, barcode: data, quantity: '1 unidades' }) }],
       );
     }
   }
 
   function validateProduct(nextProduct) {
     if (!nextProduct.name.trim()) {
+      setNameError(true);
       return 'El nombre del producto es obligatorio.';
     }
 
-    if (nextProduct.expires.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(nextProduct.expires.trim())) {
+    if (nextProduct.expires?.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(nextProduct.expires.trim())) {
       return 'La fecha debe usar formato AAAA-MM-DD.';
+    }
+
+    const amount = parseQuantity(nextProduct.quantity).amount;
+    if (!amount || Number(amount) <= 0 || Number.isNaN(Number(amount))) {
+      return 'La cantidad debe ser un número mayor a 0.';
     }
 
     return null;
   }
 
   async function handleSaveManual() {
+    setNameError(false);
     const validationError = validateProduct(product);
     if (validationError) {
-      Alert.alert('Error', validationError);
+      Alert.alert('Campo inválido', validationError);
       return;
     }
 
@@ -183,37 +202,13 @@ export default function ScannerScreen() {
       const savedProduct = await addProduct(product);
       setLastScanned(savedProduct);
       Alert.alert('¡Guardado!', 'Producto agregado al inventario.', [
-        { text: 'OK', onPress: () => setShowManual(false) },
+        { text: 'Escanear otro', onPress: () => setShowManual(false) },
+        {
+          text: 'Ver en inventario',
+          onPress: () => { setShowManual(false); navigation.navigate('Inventario'); },
+        },
       ]);
       setProduct(EMPTY_PRODUCT);
-    } catch (error) {
-      Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSaveInventory() {
-    if (!lastScanned) {
-      Alert.alert('Error', 'No hay producto para guardar.');
-      return;
-    }
-
-    const validationError = validateProduct(lastScanned);
-    if (validationError) {
-      Alert.alert('Error', validationError);
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      if (!lastScanned.id) {
-        const savedProduct = await addProduct(lastScanned);
-        setLastScanned(savedProduct);
-      }
-
-      Alert.alert('Inventario', `"${lastScanned.name}" guardado correctamente.`);
     } catch (error) {
       Alert.alert('Error', error.message || 'No se pudo guardar el producto.');
     } finally {
@@ -316,7 +311,12 @@ export default function ScannerScreen() {
         <SectionHeader icon="clock" title="Último escaneado" />
 
         <View style={styles.formCard}>
-          {lastScanned ? (
+          {loadingProduct ? (
+            <View style={styles.emptyLastScan}>
+              <ActivityIndicator size="small" color={COLORS.green500} />
+              <Text style={styles.emptyLastScanText}>Buscando producto...</Text>
+            </View>
+          ) : lastScanned ? (
             [
               { label: 'Producto',  value: lastScanned.name,     color: COLORS.gray700   },
               { label: 'Categoría', value: lastScanned.category, color: COLORS.gray700   },
@@ -341,18 +341,11 @@ export default function ScannerScreen() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.saveBtn,
-            (!lastScanned || lastScanned.id || saving) && styles.saveBtnDisabled,
-          ]}
-          onPress={handleSaveInventory}
-          disabled={!lastScanned || !!lastScanned.id || saving}
-        >
-          <Text style={styles.saveBtnText}>
-            {lastScanned?.id ? 'Producto guardado' : saving ? 'Guardando...' : 'Guardar en inventario'}
-          </Text>
-        </TouchableOpacity>
+        {lastScanned?.id && (
+          <View style={[styles.saveBtn, styles.saveBtnDisabled]}>
+            <Text style={styles.saveBtnText}>Producto guardado ✓</Text>
+          </View>
+        )}
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -369,14 +362,22 @@ export default function ScannerScreen() {
 
           <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
             <View style={styles.fieldWrapper}>
-              <Text style={styles.inputLabel}>Nombre del producto</Text>
+              <Text style={styles.inputLabel}>
+                Nombre del producto <Text style={styles.required}>*</Text>
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, nameError && styles.inputError]}
                 placeholder="Ej: Leche entera 1L"
                 placeholderTextColor={COLORS.gray300}
                 value={product.name}
-                onChangeText={v => setProduct(p => ({ ...p, name: v }))}
+                onChangeText={v => {
+                  setNameError(false);
+                  setProduct(p => ({ ...p, name: v }));
+                }}
               />
+              {nameError && (
+                <Text style={styles.errorHint}>El nombre es obligatorio.</Text>
+              )}
             </View>
 
             <View style={styles.fieldWrapper}>
@@ -436,8 +437,6 @@ export default function ScannerScreen() {
               />
             </View>
 
-            <Text style={styles.helpText}>La fecha se guarda en formato AAAA-MM-DD para activar alertas de vencimiento.</Text>
-
             <TouchableOpacity
               style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
               onPress={handleSaveManual}
@@ -454,21 +453,30 @@ export default function ScannerScreen() {
         <View style={styles.optionOverlay}>
           <View style={styles.optionSheet}>
             <Text style={styles.optionTitle}>Seleccionar categoría</Text>
-            {CATEGORIES.map(category => (
-              <TouchableOpacity
-                key={category}
-                style={styles.optionRow}
-                onPress={() => {
-                  setProduct(p => ({ ...p, category }));
-                  setShowCategoryPicker(false);
-                }}
-              >
-                <Text style={styles.optionText}>{category}</Text>
-                {product.category === category ? (
-                  <Feather name="check" size={18} color={COLORS.green600} />
-                ) : null}
-              </TouchableOpacity>
-            ))}
+            {CATEGORIES.map(category => {
+              const cfg = getCategoryConfig(category);
+              const isSelected = product.category === category;
+              return (
+                <TouchableOpacity
+                  key={category}
+                  style={[styles.optionRow, isSelected && styles.optionRowSelected]}
+                  onPress={() => {
+                    setProduct(p => ({ ...p, category }));
+                    setShowCategoryPicker(false);
+                  }}
+                >
+                  <View style={[styles.categoryIconWrap, { backgroundColor: cfg.bg }]}>
+                    <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
+                  </View>
+                  <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                    {category}
+                  </Text>
+                  {isSelected ? (
+                    <Feather name="check" size={18} color={COLORS.green600} />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
             <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
               <Text style={styles.optionCancelText}>Cancelar</Text>
             </TouchableOpacity>
@@ -872,6 +880,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.gray700,
   },
+  inputError: {
+    borderColor: COLORS.red400,
+    backgroundColor: COLORS.red50,
+  },
+  required: {
+    color: COLORS.red400,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: COLORS.red400,
+    marginTop: 4,
+    marginLeft: 2,
+  },
   selectInput: {
     minHeight: 46,
     borderWidth: 1,
@@ -940,9 +961,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 10,
   },
+  categoryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  optionRowSelected: {
+    backgroundColor: COLORS.green50,
+  },
+  optionTextSelected: {
+    color: COLORS.green600,
+    fontWeight: '700',
+  },
   optionRow: {
-    minHeight: 48,
-    paddingHorizontal: 20,
+    minHeight: 52,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
