@@ -9,6 +9,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
 import { useInventory } from '../context/InventoryContext';
+import { useOpenFoodFacts } from '../hooks/useOpenFoodFacts';
 
 const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '', barcode: '' };
 const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas', 'Verduras', 'Bebidas', 'Congelados', 'Despensa', 'Snacks', 'Otro'];
@@ -57,7 +58,7 @@ export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive]   = useState(false);
   const [scanned, setScanned]             = useState(false);
-
+  const { loadingProduct, fetchProductByBarcode } = useOpenFoodFacts();
   const [showManual, setShowManual] = useState(false);
   const [product, setProduct]       = useState(EMPTY_PRODUCT);
   const [saving, setSaving]         = useState(false);
@@ -125,25 +126,35 @@ export default function ScannerScreen() {
     setProduct(EMPTY_PRODUCT);
   }
 
-  function handleBarcodeScanned({ type, data }) {
-    if (scanned) return; // ignore duplicates
-    setScanned(true);
-    setCameraActive(false);
-    pulseAnim.stopAnimation();
+  async function handleBarcodeScanned({ type, data }) {
+  if (scanned) return;
+  setScanned(true);
+  setCameraActive(false);
+  pulseAnim.stopAnimation();
 
+  const found = await fetchProductByBarcode(data);
+
+  if (found) {
     openManualForm({
-      ...EMPTY_PRODUCT,
       barcode: data,
-      quantity: '1 unidades',
+      name: found.name,
+      quantity: found.quantity || '1 unidades',
+      category: '', 
     });
-
+    Alert.alert(
+      '¡Producto encontrado!',
+      `Se encontró "${found.name}"${found.brand ? ` de ${found.brand}` : ''}.\nRevisa y completa los datos.`,
+      [{ text: 'OK' }],
+    );
+  } else {
+        openManualForm({ barcode: data, quantity: '1 unidades' });
     Alert.alert(
       '¡Código detectado!',
-      `Tipo: ${type}\nCódigo: ${data}\n\nCompleta los datos del producto para guardarlo.`,
+      `Código: ${data}\n\nProducto no encontrado en la base de datos. Completa los datos manualmente.`,
       [{ text: 'OK' }],
     );
   }
-
+}
   function validateProduct(nextProduct) {
     if (!nextProduct.name.trim()) {
       return 'El nombre del producto es obligatorio.';
