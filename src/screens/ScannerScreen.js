@@ -1017,4 +1017,36 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    b
+    borderRadius: 12,
+  },
+  dayCellSelected: {
+    backgroundColor: COLORS.green500,
+  },
+  dayText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.gray700,
+  },
+  dayTextMuted: {
+    color: COLORS.gray300,
+  },
+  dayTextSelected: {
+    color: COLORS.white,
+  },
+  calendarActions: {
+    marginTop: 12,
+  },
+  clearDateButton: {
+    marginHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.gray300,
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  clearDateText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.green600,
+  },
+});
