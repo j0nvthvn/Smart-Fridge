@@ -9,6 +9,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
 import { useInventory } from '../context/InventoryContext';
+import { useOpenFoodFacts } from '../hooks/useOpenFoodFacts';
 
 const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '', barcode: '' };
 const CATEGORIES = ['Lácteos', 'Carnes', 'Frutas', 'Verduras', 'Bebidas', 'Congelados', 'Despensa', 'Snacks', 'Otro'];
@@ -57,6 +58,7 @@ export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [cameraActive, setCameraActive]   = useState(false);
   const [scanned, setScanned]             = useState(false);
+  const { loadingProduct, fetchProductByBarcode } = useOpenFoodFacts();
 
   const [showManual, setShowManual] = useState(false);
   const [product, setProduct]       = useState(EMPTY_PRODUCT);
@@ -125,23 +127,35 @@ export default function ScannerScreen() {
     setProduct(EMPTY_PRODUCT);
   }
 
-  function handleBarcodeScanned({ type, data }) {
+  async function handleBarcodeScanned({ type, data }) {
     if (scanned) return; // ignore duplicates
     setScanned(true);
     setCameraActive(false);
     pulseAnim.stopAnimation();
 
-    openManualForm({
-      ...EMPTY_PRODUCT,
-      barcode: data,
-      quantity: '1 unidades',
-    });
+    const found = await fetchProductByBarcode(data);
 
-    Alert.alert(
-      '¡Código detectado!',
-      `Tipo: ${type}\nCódigo: ${data}\n\nCompleta los datos del producto para guardarlo.`,
-      [{ text: 'OK' }],
-    );
+    if (found) {
+      openManualForm({
+        ...EMPTY_PRODUCT,
+        barcode: data,
+        name: found.name,
+        quantity: found.quantity || '1 unidades',
+        category: '',
+      });
+      Alert.alert(
+        '¡Producto encontrado!',
+        `Se encontró "${found.name}"${found.brand ? ` de ${found.brand}` : ''}.\nRevisa y completa los datos.`,
+        [{ text: 'OK' }],
+      );
+    } else {
+      openManualForm({ ...EMPTY_PRODUCT, barcode: data, quantity: '1 unidades' });
+      Alert.alert(
+        '¡Código detectado!',
+        `Código: ${data}\n\nProducto no encontrado en la base de datos. Completa los datos manualmente.`,
+        [{ text: 'OK' }],
+      );
+    }
   }
 
   function validateProduct(nextProduct) {
@@ -1003,36 +1017,4 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-  },
-  dayCellSelected: {
-    backgroundColor: COLORS.green500,
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray700,
-  },
-  dayTextMuted: {
-    color: COLORS.gray300,
-  },
-  dayTextSelected: {
-    color: COLORS.white,
-  },
-  calendarActions: {
-    marginTop: 12,
-  },
-  clearDateButton: {
-    marginHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  clearDateText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.green600,
-  },
-});
+    b
