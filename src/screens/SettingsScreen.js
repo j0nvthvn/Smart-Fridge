@@ -8,11 +8,25 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import SettingsRow from '../components/SettingsRow';
 import { useAuth } from '../context/AuthContext';
+import { requestNotificationPermission, scheduleExpiryNotifications } from '../services/notificationService';
+import { useInventory } from '../context/InventoryContext';
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
   const [notifications, setNotifications] = useState(true);
   const [daysWarning, setDaysWarning] = useState(3);
+
+  const { products } = useInventory();
+
+async function handleTestNotification() {
+  const granted = await requestNotificationPermission();
+  if (!granted) {
+    Alert.alert('Sin permiso', 'Activa los permisos de notificación en ajustes del sistema.');
+    return;
+  }
+  await scheduleExpiryNotifications(products);
+  Alert.alert('✅ Listo', 'Se enviaron las notificaciones según tu inventario actual.');
+}
 
   function handleLogout() {
     Alert.alert('Cerrar sesión', '¿Estás seguro que deseas salir?', [
@@ -84,7 +98,20 @@ export default function SettingsScreen() {
                 thumbColor={COLORS.white}
               />
             }
+            
+
           />
+          
+        <View style={styles.divider} />
+        <SettingsRow
+            icon="bell"
+            iconBg={COLORS.orange50}
+            iconColor={COLORS.orange600}
+            label="Probar notificaciones"
+            right={<Feather name="chevron-right" size={16} color={COLORS.gray300} />}
+            onPress={handleTestNotification}
+        />
+
           <View style={styles.divider} />
           <SettingsRow
             icon="clock"
