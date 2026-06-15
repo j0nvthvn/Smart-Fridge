@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { parseSupabaseError } from '../utils/errorUtils';
+import { requestNotificationPermission, scheduleExpiryNotifications } from '../services/notificationService';
 
 const LEGACY_STORAGE_KEY = '@smartfridge/inventory';
 const PRODUCT_COLUMNS = 'id, name, category, expires, quantity, barcode, created_at';
@@ -155,8 +156,17 @@ export function InventoryProvider({ children }) {
   }
 
   useEffect(() => {
-    refreshInventory();
-  }, [user?.id]);
+  if (!products.length) return;
+
+  async function setupNotifications() {
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      await scheduleExpiryNotifications(products);
+    }
+  }
+
+  setupNotifications();
+}, [products]);
 
   async function addProduct(product) {
     if (!user?.id) {
