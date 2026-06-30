@@ -9,6 +9,7 @@ import HomeScreen     from './src/screens/HomeScreen';
 import InventoryScreen from './src/screens/InventoryScreen';
 import ScannerScreen  from './src/screens/ScannerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import ChefScreen     from './src/screens/ChefScreen';
 import LoginScreen    from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import { COLORS }     from './src/constants/colors';
@@ -23,6 +24,8 @@ const TAB_ICONS = {
   Inventario: 'archive',
   Cuenta:     'user',
 };
+
+const TAB_CHEF = 'Chef IA';
 
 function MainTabs() {
   return (
@@ -44,17 +47,22 @@ function MainTabs() {
             fontSize: 10,
             fontWeight: '500',
           },
-          tabBarIcon: ({ color }) => (
-            route.name === 'Escáner'
-              ? <MaterialCommunityIcons name="barcode-scan" size={22} color={color} />
-              : <Feather name={TAB_ICONS[route.name]} size={20} color={color} />
-          ),
+          tabBarIcon: ({ color }) => {
+            if (route.name === 'Escáner') {
+              return <MaterialCommunityIcons name="barcode-scan" size={22} color={color} />;
+            }
+            if (route.name === TAB_CHEF) {
+              return <MaterialCommunityIcons name="chef-hat" size={22} color={color} />;
+            }
+            return <Feather name={TAB_ICONS[route.name]} size={20} color={color} />;
+          },
         })}
       >
-        <Tab.Screen name="Inicio"  component={HomeScreen}     />
+        <Tab.Screen name="Inicio"     component={HomeScreen}      />
         <Tab.Screen name="Inventario" component={InventoryScreen} />
-        <Tab.Screen name="Escáner" component={ScannerScreen}  />
-        <Tab.Screen name="Cuenta"  component={SettingsScreen} />
+        <Tab.Screen name="Escáner"    component={ScannerScreen}   />
+        <Tab.Screen name={TAB_CHEF}   component={ChefScreen}      />
+        <Tab.Screen name="Cuenta"     component={SettingsScreen}  />
       </Tab.Navigator>
     </NavigationContainer>
   );
