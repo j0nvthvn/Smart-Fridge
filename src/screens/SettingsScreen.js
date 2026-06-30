@@ -8,11 +8,20 @@ import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import SettingsRow from '../components/SettingsRow';
 import { useAuth } from '../context/AuthContext';
+import { useInventory } from '../context/InventoryContext';
+import EditProfileScreen from './EditProfileScreen';
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
-  const [notifications, setNotifications] = useState(true);
-  const [daysWarning, setDaysWarning] = useState(3);
+  const { notificationSettings, updateNotificationSettings } = useInventory();
+  const [editingProfile, setEditingProfile] = useState(false);
+
+  const notifications = notificationSettings?.enabled ?? true;
+  const daysWarning = notificationSettings?.daysWarning ?? 3;
+
+  if (editingProfile) {
+    return <EditProfileScreen onClose={() => setEditingProfile(false)} />;
+  }
 
   function handleLogout() {
     Alert.alert('Cerrar sesión', '¿Estás seguro que deseas salir?', [
@@ -27,13 +36,13 @@ export default function SettingsScreen() {
       'Selecciona cuántos días antes quieres recibir la alerta:',
       [1, 2, 3, 5, 7].map(d => ({
         text: `${d} día${d > 1 ? 's' : ''}`,
-        onPress: () => setDaysWarning(d),
+        onPress: () => updateNotificationSettings({ daysWarning: d }),
       })),
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView showsVerticalScrollIndicator={false}>
 
         {/* Profile header */}
@@ -55,7 +64,7 @@ export default function SettingsScreen() {
             iconColor={COLORS.green600}
             label="Editar perfil"
             right={<Feather name="chevron-right" size={16} color={COLORS.gray300} />}
-            onPress={() => Alert.alert('Próximamente', 'Edición de perfil en desarrollo.')}
+            onPress={() => setEditingProfile(true)}
           />
           <View style={styles.divider} />
           <SettingsRow
@@ -79,7 +88,7 @@ export default function SettingsScreen() {
             right={
               <Switch
                 value={notifications}
-                onValueChange={setNotifications}
+                onValueChange={value => updateNotificationSettings({ enabled: value })}
                 trackColor={{ false: COLORS.gray300, true: COLORS.green500 }}
                 thumbColor={COLORS.white}
               />
@@ -131,9 +140,9 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
-    backgroundColor: '#F8FAFC' 
+  safe: {
+    flex: 1,
+    backgroundColor: COLORS.gray50
   },
   profileHeader: {
     backgroundColor: COLORS.green500,
@@ -186,20 +195,15 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 24, 
+    borderRadius: 24,
     marginHorizontal: 16,
-    overflow: 'hidden', 
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 10,
-    elevation: 2,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#E2E8F0', 
+    borderColor: COLORS.gray200,
   },
   divider: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9', 
+    borderBottomColor: COLORS.gray100,
     marginLeft: 58,
   },
   daysChip: {
@@ -223,23 +227,5 @@ const styles = StyleSheet.create({
     marginTop: 28,
     fontSize: 12,
     color: COLORS.gray500,
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#FEF2F2', 
-    borderRadius: 20,
-    marginHorizontal: 16,
-    marginTop: 32,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: '#FEE2E2',
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.red400, 
   },
 });

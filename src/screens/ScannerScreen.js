@@ -9,38 +9,14 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
+import DatePickerModal from '../components/DatePickerModal';
 import { useInventory } from '../context/InventoryContext';
 import { useOpenFoodFacts } from '../hooks/useOpenFoodFacts';
 import { CATEGORIES, getCategoryConfig } from '../constants/categories';
+import { formatDisplayDate } from '../utils/date';
 
 const EMPTY_PRODUCT = { name: '', category: '', expires: '', quantity: '', barcode: '' };
 const QUANTITY_UNITS = ['unidades', 'paquetes', 'cajas', 'botellas', 'bolsas', 'kg', 'g', 'L', 'ml'];
-const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-
-function formatDate(date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function formatMonthLabel(date) {
-  return date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
-}
-
-function buildCalendarDays(monthDate) {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const startOffset = (firstDay.getDay() + 6) % 7;
-  const startDate = new Date(year, month, 1 - startOffset);
-
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + index);
-    return date;
-  });
-}
 
 function parseQuantity(quantity) {
   const [amount = '1', ...unitParts] = (quantity || '1 unidades').split(' ');
@@ -70,13 +46,11 @@ export default function ScannerScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
 
   const [lastScanned, setLastScanned] = useState(null);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const quantityParts = parseQuantity(product.quantity);
-  const calendarDays = buildCalendarDays(calendarMonth);
 
   useEffect(() => {
     if (!lastScanned?.id) return;
@@ -92,6 +66,15 @@ export default function ScannerScreen() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route.params?.openManual]);
+
+  useEffect(() => {
+    const parentTabNavigator = navigation.getParent();
+    parentTabNavigator?.setOptions({
+      tabBarStyle: cameraActive ? { display: 'none' } : undefined,
+    });
+
+    return () => parentTabNavigator?.setOptions({ tabBarStyle: undefined });
+  }, [cameraActive, navigation]);
 
   function startPulse() {
     Animated.loop(
@@ -125,8 +108,6 @@ export default function ScannerScreen() {
   }
 
   function openManualForm(nextProduct = EMPTY_PRODUCT) {
-    const expires = nextProduct.expires ? new Date(nextProduct.expires) : new Date();
-    setCalendarMonth(Number.isNaN(expires.getTime()) ? new Date() : expires);
     setProduct({ ...EMPTY_PRODUCT, quantity: '1 unidades', ...nextProduct });
     setShowManual(true);
   }
@@ -276,7 +257,7 @@ export default function ScannerScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView showsVerticalScrollIndicator={false}>
 
         {/* Header */}
@@ -320,7 +301,7 @@ export default function ScannerScreen() {
             [
               { label: 'Producto',  value: lastScanned.name,     color: COLORS.gray700   },
               { label: 'Categoría', value: lastScanned.category, color: COLORS.gray700   },
-              { label: 'Vence',     value: lastScanned.expires || 'Sin fecha', color: COLORS.orange400 },
+              { label: 'Vence',     value: lastScanned.expires ? formatDisplayDate(lastScanned.expires) : 'Sin fecha', color: COLORS.orange400 },
               { label: 'Cantidad',  value: lastScanned.quantity, color: COLORS.gray700   },
               ...(lastScanned.barcode
                 ? [{ label: 'Código', value: lastScanned.barcode, color: COLORS.gray500 }]
@@ -394,7 +375,7 @@ export default function ScannerScreen() {
               <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
               <TouchableOpacity style={styles.selectInput} onPress={() => setShowDatePicker(true)}>
                 <Text style={[styles.selectText, !product.expires && styles.placeholderText]}>
-                  {product.expires || 'Selecciona una fecha'}
+                  {product.expires ? formatDisplayDate(product.expires) : 'Selecciona una fecha'}
                 </Text>
                 <Feather name="calendar" size={18} color={COLORS.gray500} />
               </TouchableOpacity>
@@ -513,80 +494,15 @@ export default function ScannerScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showDatePicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.calendarSheet}>
-            <View style={styles.calendarHeader}>
-              <TouchableOpacity
-                style={styles.calendarNav}
-                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
-              >
-                <Feather name="chevron-left" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
-              <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
-              <TouchableOpacity
-                style={styles.calendarNav}
-                onPress={() => setCalendarMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
-              >
-                <Feather name="chevron-right" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.weekRow}>
-              {WEEKDAYS.map((day, index) => (
-                <Text key={`${day}-${index}`} style={styles.weekDay}>{day}</Text>
-              ))}
-            </View>
-
-            <View style={styles.daysGrid}>
-              {calendarDays.map(date => {
-                const dateValue = formatDate(date);
-                const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
-                const selected = product.expires === dateValue;
-
-                return (
-                  <TouchableOpacity
-                    key={dateValue}
-                    style={[
-                      styles.dayCell,
-                      selected && styles.dayCellSelected,
-                    ]}
-                    onPress={() => {
-                      setProduct(p => ({ ...p, expires: dateValue }));
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.dayText,
-                        !inCurrentMonth && styles.dayTextMuted,
-                        selected && styles.dayTextSelected,
-                      ]}
-                    >
-                      {date.getDate()}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.calendarActions}>
-              <TouchableOpacity
-                style={styles.clearDateButton}
-                onPress={() => {
-                  setProduct(p => ({ ...p, expires: '' }));
-                  setShowDatePicker(false);
-                }}
-              >
-                <Text style={styles.clearDateText}>Sin fecha</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.optionCancel} onPress={() => setShowDatePicker(false)}>
-                <Text style={styles.optionCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <DatePickerModal
+        visible={showDatePicker}
+        value={product.expires}
+        onSelect={dateValue => {
+          setProduct(p => ({ ...p, expires: dateValue }));
+          setShowDatePicker(false);
+        }}
+        onClose={() => setShowDatePicker(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -594,7 +510,7 @@ export default function ScannerScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: COLORS.gray50,
   },
   header: {
     backgroundColor: COLORS.green500,
@@ -682,7 +598,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: COLORS.gray200,
   },
   manualBtnText: {
     fontSize: 14,
@@ -695,13 +611,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginHorizontal: 20,
     marginTop: 8,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: COLORS.gray100,
     overflow: 'hidden',
   },
   formRow: {
@@ -712,7 +623,7 @@ const styles = StyleSheet.create({
   },
   formRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: COLORS.gray100,
   },
   formLabel: {
     width: 100,
@@ -1002,87 +913,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.gray700,
-  },
-  calendarSheet: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  calendarNav: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.gray100,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  calendarTitle: {
-    flex: 1,
-    textAlign: 'center',
-    textTransform: 'capitalize',
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.gray700,
-  },
-  weekRow: {
-    flexDirection: 'row',
-    marginBottom: 6,
-  },
-  weekDay: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.gray500,
-  },
-  daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  dayCell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-  },
-  dayCellSelected: {
-    backgroundColor: COLORS.green500,
-  },
-  dayText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.gray700,
-  },
-  dayTextMuted: {
-    color: COLORS.gray300,
-  },
-  dayTextSelected: {
-    color: COLORS.white,
-  },
-  calendarActions: {
-    marginTop: 12,
-  },
-  clearDateButton: {
-    marginHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  clearDateText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.green600,
   },
 });

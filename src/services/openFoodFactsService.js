@@ -17,6 +17,7 @@ export const getProductByBarcode = async (barcode) => {
     if (data.status === 0) return null;
 
     const p = data.product;
+    if (!p) return null;
     return {
       name: p.product_name_es || p.product_name || '',
       brand: p.brands || '',

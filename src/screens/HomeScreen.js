@@ -1,21 +1,22 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity,
+  TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import SectionHeader from '../components/SectionHeader';
 import { useAuth } from '../context/AuthContext';
 import { useInventory } from '../context/InventoryContext';
+import { getCategoryConfig } from '../constants/categories';
 
 const ALERT_STYLES = {
   expired: { border: COLORS.red400,    tag: 'Vencido', tagBg: COLORS.red50,    tagColor: COLORS.red400    },
   urgent:  { border: COLORS.red400,    tag: 'Urgente', tagBg: COLORS.red50,    tagColor: COLORS.red400    },
   soon:    { border: COLORS.orange400, tag: 'Pronto',  tagBg: COLORS.orange50, tagColor: COLORS.orange400 },
-  ok:      { border: COLORS.yellow400, tag: 'OK',      tagBg: COLORS.green50,  tagColor: COLORS.green600  },
+  ok:      { border: COLORS.green500,  tag: 'OK',      tagBg: COLORS.green50,  tagColor: COLORS.green600  },
 };
 
 const SUMMARY_CARDS = [
@@ -24,18 +25,44 @@ const SUMMARY_CARDS = [
   { icon: 'alert-triangle', key: 'expired',       label: 'vencidos',  color: COLORS.red400    },
 ];
 
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 6)  return 'Buenas noches';
+  if (hour < 12) return 'Buenos días';
+  if (hour < 20) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
 export default function HomeScreen() {
   const { user } = useAuth();
-  const { loading, error, summary } = useInventory();
+  const { loading, error, summary, refreshInventory } = useInventory();
   const navigation = useNavigation();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshInventory({ showLoading: false });
+    setRefreshing(false);
+  }, [refreshInventory]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.green500}
+            colors={[COLORS.green500]}
+          />
+        }
+      >
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>¡Hola de nuevo!</Text>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
           <Text style={styles.name}>{user?.name ?? ''}</Text>
           <Text style={styles.subtitle}>{
             loading
@@ -97,6 +124,7 @@ export default function HomeScreen() {
         ) : (
           summary.alerts.map(item => {
             const alertStyle = ALERT_STYLES[item.level] || ALERT_STYLES.ok;
+            const catCfg = getCategoryConfig(item.category);
 
             return (
               <TouchableOpacity
@@ -106,9 +134,12 @@ export default function HomeScreen() {
                 onPress={() => navigation.navigate('Inventario')}
               >
                 <View style={[styles.alertBorder, { backgroundColor: alertStyle.border }]} />
+                <View style={[styles.alertCategoryAvatar, { backgroundColor: catCfg.bg }]}>
+                  <MaterialCommunityIcons name={catCfg.icon} size={18} color={catCfg.color} />
+                </View>
                 <View style={styles.alertInfo}>
                   <Text style={styles.alertName}>{item.name}</Text>
-                  <Text style={styles.alertDate}>{item.date}</Text>
+                  <Text style={styles.alertDate}>{item.date} · {item.quantity || '1 unidad'}</Text>
                 </View>
                 <View style={[styles.tag, { backgroundColor: alertStyle.tagBg }]}>
                   <Text style={[styles.tagText, { color: alertStyle.tagColor }]}>
@@ -185,6 +216,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 0.5,
     borderColor: COLORS.gray300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   summaryIcon: {
     marginBottom: 4,
@@ -192,6 +228,7 @@ const styles = StyleSheet.create({
   summaryNum: {
     fontSize: 22,
     fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
   summaryLabel: {
     fontSize: 10,
@@ -209,10 +246,23 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 0.5,
     borderColor: COLORS.gray300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   alertBorder: {
     width: 4,
     alignSelf: 'stretch',
+  },
+  alertCategoryAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   alertInfo: {
     flex: 1,

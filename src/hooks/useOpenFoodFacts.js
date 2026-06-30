@@ -12,8 +12,11 @@ export const useOpenFoodFacts = () => {
       const product = await getProductByBarcode(barcode);
       return { product, error: null };
     } catch (err) {
-      setErrorProduct(err.message);
-      return { product: null, error: err.message };
+      const message = err.name === 'AbortError'
+        ? 'Tiempo de espera agotado, revisa tu conexión.'
+        : err.message;
+      setErrorProduct(message);
+      return { product: null, error: message };
     } finally {
       setLoadingProduct(false);
     }

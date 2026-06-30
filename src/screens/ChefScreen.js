@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  FlatList, StyleSheet, KeyboardAvoidingView,
+  FlatList, ScrollView, StyleSheet, KeyboardAvoidingView,
   Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +35,28 @@ const WELCOME_MESSAGE = {
   data: { type: 'text', content: '¡Hola! Soy tu Chef IA 👨‍🍳\n\nConozco tu inventario y puedo sugerirte recetas con lo que tienes, priorizando los ingredientes que están por vencer.\n\n¿Qué te gustaría cocinar hoy?' },
 };
 
+const GENERIC_SUGGESTIONS = ['Sorpréndeme con algo rápido', 'Receta con lo que tengo', 'Menú para hoy'];
+
+const HISTORY_LIMIT = 8;
+
+function summarizeAssistantMessage(data) {
+  if (!data) return '';
+  if (data.type === 'recipe') return `Te sugerí la receta: ${data.name}.`;
+  if (data.type === 'menu') return `Te sugerí estas recetas: ${data.recipes.map(r => r.name).join(', ')}.`;
+  return data.content ?? '';
+}
+
+function hasExpiringSoon(products) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return products.some(p => {
+    if (!p.expires) return false;
+    const exp = new Date(p.expires + 'T00:00:00');
+    const days = Math.ceil((exp - today) / 86400000);
+    return days <= 3;
+  });
+}
+
 export default function ChefScreen() {
   const { products } = useInventory();
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
@@ -42,8 +64,12 @@ export default function ChefScreen() {
   const [loading, setLoading] = useState(false);
   const listRef = useRef(null);
 
-  async function handleSend() {
-    const text = input.trim();
+  const initialSuggestions = useMemo(() => {
+    const chips = hasExpiringSoon(products) ? ['¿Qué cocino con lo que vence pronto?'] : [];
+    return [...chips, ...GENERIC_SUGGESTIONS].slice(0, 3);
+  }, [products]);
+
+  async function sendText(text) {
     if (!text || loading) return;
 
     const userMsg = { id: Date.now().toString(), role: 'user', content: text };
@@ -51,8 +77,9 @@ export default function ChefScreen() {
       .filter(m => m.id !== 'welcome')
       .map(m => ({
         role: m.role,
-        content: m.role === 'user' ? m.content : (m.data?.content ?? JSON.stringify(m.data)),
-      }));
+        content: m.role === 'user' ? m.content : summarizeAssistantMessage(m.data),
+      }))
+      .slice(-HISTORY_LIMIT);
 
     setMessages(prev => [...prev, userMsg]);
     setInput('');
@@ -72,11 +99,16 @@ export default function ChefScreen() {
           role: 'assistant',
           data: { type: 'text', content: `Lo siento, hubo un error: ${err.message}` },
           isError: true,
+          retryText: text,
         },
       ]);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSend() {
+    sendText(input.trim());
   }
 
   function renderBubbleContent(item) {
@@ -111,6 +143,39 @@ export default function ChefScreen() {
     );
   }
 
+  function activeSuggestions() {
+    if (messages.length === 1) return initialSuggestions;
+    const last = messages[messages.length - 1];
+    if (last.role === 'assistant' && Array.isArray(last.data?.suggestions) && last.data.suggestions.length > 0) {
+      return last.data.suggestions;
+    }
+    return [];
+  }
+
+  function renderSuggestionChips() {
+    const suggestions = activeSuggestions();
+    if (suggestions.length === 0 || loading) return null;
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.suggestionsRow}
+        keyboardShouldPersistTaps="handled"
+      >
+        {suggestions.map((s, i) => (
+          <TouchableOpacity
+            key={i}
+            style={styles.chip}
+            onPress={() => sendText(s)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.chipText}>{s}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
+  }
+
   function renderMessage({ item }) {
     const isUser = item.role === 'user';
     return (
@@ -126,13 +191,24 @@ export default function ChefScreen() {
           item.isError && styles.bubbleError,
         ]}>
           {renderBubbleContent(item)}
+          {item.isError && item.retryText && (
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() => sendText(item.retryText)}
+              disabled={loading}
+              activeOpacity={0.7}
+            >
+              <Feather name="rotate-ccw" size={13} color={COLORS.red400} />
+              <Text style={styles.retryText}>Reintentar</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <MaterialCommunityIcons name="chef-hat" size={22} color={COLORS.white} />
@@ -153,6 +229,7 @@ export default function ChefScreen() {
           contentContainerStyle={styles.list}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={renderSuggestionChips}
         />
 
         {loading && (
@@ -372,10 +449,42 @@ const styles = StyleSheet.create({
   errorText: {
     color: COLORS.red400,
   },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  retryText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: COLORS.red400,
+  },
   menuDivider: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 0.5,
     borderTopColor: COLORS.gray300,
+  },
+  suggestionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingLeft: 38,
+    paddingRight: 16,
+    paddingTop: 2,
+  },
+  chip: {
+    backgroundColor: COLORS.green50,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.green500,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  chipText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: COLORS.green600,
   },
 });

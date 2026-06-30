@@ -83,8 +83,24 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut();
   }
 
+  async function updateProfile(name) {
+    const trimmed = name?.trim();
+    if (!trimmed) return { error: 'El nombre no puede estar vacío.' };
+    if (!user) return { error: 'No hay sesión activa.' };
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ name: trimmed })
+      .eq('id', user.id);
+
+    if (error) return { error: error.message };
+
+    setUser(prev => ({ ...prev, name: trimmed }));
+    return { error: null };
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

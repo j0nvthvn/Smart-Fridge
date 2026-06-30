@@ -18,35 +18,12 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import { CATEGORIES, getCategoryConfig } from '../constants/categories';
 import { useInventory } from '../context/InventoryContext';
+import DatePickerModal from '../components/DatePickerModal';
+import { formatDisplayDate } from '../utils/date';
 
 const EMPTY_FORM = { name: '', category: '', expires: '', quantity: '1 unidades', barcode: '' };
 
 const QUANTITY_UNITS = ['unidades', 'paquetes', 'cajas', 'botellas', 'bolsas', 'kg', 'g', 'L', 'ml'];
-const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-
-function formatDate(date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function formatMonthLabel(date) {
-  return date.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' });
-}
-
-function buildCalendarDays(monthDate) {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
-  const firstDay = new Date(year, month, 1);
-  const startOffset = (firstDay.getDay() + 6) % 7;
-  const startDate = new Date(year, month, 1 - startOffset);
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(startDate);
-    date.setDate(startDate.getDate() + index);
-    return date;
-  });
-}
 
 function parseQuantity(quantity) {
   const [amount = '1', ...unitParts] = (quantity || '1 unidades').split(' ');
@@ -81,7 +58,7 @@ function getStatus(product) {
   if (days === 0) return { label: 'Hoy', color: COLORS.red400, bg: COLORS.red50 };
   if (days <= 2) return { label: `${days} dias`, color: COLORS.orange400, bg: COLORS.orange50 };
   if (days <= 5) return { label: `${days} dias`, color: COLORS.green600, bg: COLORS.green50 };
-  return { label: product.expires, color: COLORS.gray700, bg: COLORS.gray100 };
+  return { label: formatDisplayDate(product.expires), color: COLORS.gray700, bg: COLORS.gray100 };
 }
 
 export default function InventoryScreen() {
@@ -101,10 +78,8 @@ export default function InventoryScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
 
   const quantityParts = parseQuantity(form.quantity);
-  const calendarDays = buildCalendarDays(calendarMonth);
 
   const categories = useMemo(() => {
     const cats = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
@@ -153,8 +128,6 @@ export default function InventoryScreen() {
 
   function openEdit(product) {
     setEditing(product);
-    const expires = product.expires ? new Date(product.expires) : new Date();
-    setCalendarMonth(Number.isNaN(expires.getTime()) ? new Date() : expires);
     setForm({
       name: product.name || '',
       category: product.category || '',
@@ -257,7 +230,7 @@ export default function InventoryScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.headerSub}>Productos guardados</Text>
         <Text style={styles.headerTitle}>Inventario</Text>
@@ -274,7 +247,8 @@ export default function InventoryScreen() {
           autoCapitalize="none"
         />
         {query ? (
-          <TouchableOpacity onPress={() => setQuery('')} style={styles.clearButton}>
+          <TouchableOpacity onPress={() => setQuery('')} style={styles.clearButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Feather name="x" size={16} color={COLORS.gray500} />
           </TouchableOpacity>
         ) : null}
@@ -285,16 +259,18 @@ export default function InventoryScreen() {
         {categories.map(cat => {
           const cfg = cat === 'Todos' ? null : getCategoryConfig(cat);
           const isActive = activeCategory === cat;
+          const dotColor = isActive ? COLORS.white : (cfg ? cfg.color : COLORS.gray500);
           return (
             <TouchableOpacity key={cat}
               style={[styles.categoryChip, isActive && styles.categoryChipActive]}
               onPress={() => setActiveCategory(cat)}>
-              {cfg
-                ? <MaterialCommunityIcons name={cfg.icon} size={13}
-                    color={isActive ? COLORS.white : cfg.color} style={styles.chipIcon} />
-                : <Feather name="grid" size={12}
-                    color={isActive ? COLORS.white : COLORS.gray500} style={styles.chipIcon} />}
-              <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>{cat}</Text>
+              <View style={[styles.chipDot, { backgroundColor: dotColor }]} />
+              <Text
+                allowFontScaling={false}
+                style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}
+              >
+                {cat}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -420,51 +396,15 @@ export default function InventoryScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showDatePicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.calendarSheet}>
-            <View style={styles.calendarHeader}>
-              <TouchableOpacity style={styles.calendarNav}
-                onPress={() => setCalendarMonth(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))}>
-                <Feather name="chevron-left" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
-              <Text style={styles.calendarTitle}>{formatMonthLabel(calendarMonth)}</Text>
-              <TouchableOpacity style={styles.calendarNav}
-                onPress={() => setCalendarMonth(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))}>
-                <Feather name="chevron-right" size={20} color={COLORS.gray700} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.weekRow}>
-              {WEEKDAYS.map((day, i) => <Text key={`${day}-${i}`} style={styles.weekDay}>{day}</Text>)}
-            </View>
-            <View style={styles.daysGrid}>
-              {calendarDays.map(date => {
-                const dateValue = formatDate(date);
-                const inCurrentMonth = date.getMonth() === calendarMonth.getMonth();
-                const selected = form.expires === dateValue;
-                return (
-                  <TouchableOpacity key={dateValue}
-                    style={[styles.dayCell, selected && styles.dayCellSelected]}
-                    onPress={() => { setForm(f => ({ ...f, expires: dateValue })); setShowDatePicker(false); }}>
-                    <Text style={[styles.dayText, !inCurrentMonth && styles.dayTextMuted, selected && styles.dayTextSelected]}>
-                      {date.getDate()}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={styles.calendarActions}>
-              <TouchableOpacity style={styles.clearDateButton}
-                onPress={() => { setForm(f => ({ ...f, expires: '' })); setShowDatePicker(false); }}>
-                <Text style={styles.clearDateText}>Sin fecha</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.optionCancel} onPress={() => setShowDatePicker(false)}>
-                <Text style={styles.optionCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <DatePickerModal
+        visible={showDatePicker}
+        value={form.expires}
+        onSelect={dateValue => {
+          setForm(f => ({ ...f, expires: dateValue }));
+          setShowDatePicker(false);
+        }}
+        onClose={() => setShowDatePicker(false)}
+      />
 
       <Modal visible={!!editing} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalSafe}>
@@ -507,7 +447,7 @@ export default function InventoryScreen() {
               <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
               <TouchableOpacity style={styles.selectInput} onPress={() => setShowDatePicker(true)}>
                 <Text style={[styles.selectText, !form.expires && styles.placeholderText]}>
-                  {form.expires || 'Selecciona una fecha'}
+                  {form.expires ? formatDisplayDate(form.expires) : 'Selecciona una fecha'}
                 </Text>
                 <Feather name="calendar" size={18} color={COLORS.gray500} />
               </TouchableOpacity>
@@ -553,7 +493,7 @@ export default function InventoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F8FAFC', position: 'relative' },
+  safe: { flex: 1, backgroundColor: COLORS.gray50, position: 'relative' },
   fab: {
     position: 'absolute', bottom: 20, right: 20, width: 52, height: 52,
     borderRadius: 26, backgroundColor: COLORS.green500,
@@ -569,9 +509,9 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1 },
   headerTitle: { fontSize: 22, fontWeight: '700', color: COLORS.white, marginTop: 4 },
   searchWrapper: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.gray100,
     borderRadius: 14, marginHorizontal: 16, marginTop: 16, marginBottom: 10,
-    paddingHorizontal: 12, height: 46, gap: 8, borderWidth: 1, borderColor: COLORS.gray300,
+    paddingHorizontal: 12, height: 46, gap: 8, borderWidth: 1, borderColor: COLORS.gray200,
   },
   searchInput: { flex: 1, color: COLORS.gray700, fontSize: 14 },
   clearButton: { padding: 4 },
@@ -583,12 +523,12 @@ const styles = StyleSheet.create({
   statusFilterBanner: { paddingHorizontal: 16, paddingBottom: 6 },
   statusFilterChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99 },
   statusFilterText: { fontSize: 12, fontWeight: '600' },
-  categoryScroll: { flexGrow: 0 },
-  categoryRow: { paddingHorizontal: 16, paddingVertical: 6, gap: 8, alignItems: 'center' },
-  categoryChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray300 },
-  chipIcon: { marginRight: 4 },
+  categoryScroll: { flexGrow: 0, flexShrink: 0, height: 50 },
+  categoryRow: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, alignItems: 'center', height: 50 },
+  categoryChip: { flexDirection: 'row', alignItems: 'center', height: 34, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 99, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.gray300 },
+  chipDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
   categoryChipActive: { backgroundColor: COLORS.green500, borderColor: COLORS.green500 },
-  categoryChipText: { fontSize: 12, fontWeight: '600', color: COLORS.gray500 },
+  categoryChipText: { fontSize: 12, lineHeight: 16, fontWeight: '600', color: COLORS.gray500 },
   categoryChipTextActive: { color: COLORS.white },
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
   emptyContent: { flexGrow: 1, paddingHorizontal: 16 },
@@ -599,10 +539,10 @@ const styles = StyleSheet.create({
   productName: { fontSize: 15, fontWeight: '700', color: COLORS.gray700 },
   productMeta: { fontSize: 12, color: COLORS.gray500, marginTop: 3 },
   statusChip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  statusText: { fontSize: 11, fontWeight: '700' },
+  statusText: { fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
   productBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 },
   actions: { flexDirection: 'row', gap: 8 },
-  iconButton: { width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { width: 40, height: 40, borderRadius: 10, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center' },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   stateTitle: { fontSize: 16, fontWeight: '700', color: COLORS.gray700, marginTop: 12, textAlign: 'center' },
@@ -610,7 +550,7 @@ const styles = StyleSheet.create({
   retryButton: { marginTop: 16, backgroundColor: COLORS.green500, borderRadius: 12, paddingHorizontal: 18, paddingVertical: 10 },
   retryText: { color: COLORS.white, fontWeight: '700' },
   modalSafe: { flex: 1, backgroundColor: COLORS.white },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: COLORS.gray200 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(15,23,42,0.08)' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.gray700 },
   modalScroll: { flex: 1, paddingTop: 8 },
   fieldWrapper: { paddingHorizontal: 20, paddingTop: 16 },
@@ -639,19 +579,4 @@ const styles = StyleSheet.create({
   optionTextSelected: { color: COLORS.green600, fontWeight: '700' },
   optionCancel: { marginHorizontal: 20, marginTop: 14, borderRadius: 12, backgroundColor: COLORS.gray100, alignItems: 'center', paddingVertical: 12 },
   optionCancelText: { fontSize: 14, fontWeight: '700', color: COLORS.gray700 },
-  calendarSheet: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20 },
-  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  calendarNav: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.gray100, alignItems: 'center', justifyContent: 'center' },
-  calendarTitle: { flex: 1, textAlign: 'center', textTransform: 'capitalize', fontSize: 16, fontWeight: '700', color: COLORS.gray700 },
-  weekRow: { flexDirection: 'row', marginBottom: 6 },
-  weekDay: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '700', color: COLORS.gray500 },
-  daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  dayCell: { width: '14.2857%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  dayCellSelected: { backgroundColor: COLORS.green500 },
-  dayText: { fontSize: 14, fontWeight: '600', color: COLORS.gray700 },
-  dayTextMuted: { color: COLORS.gray300 },
-  dayTextSelected: { color: COLORS.white },
-  calendarActions: { marginTop: 12 },
-  clearDateButton: { marginHorizontal: 20, borderRadius: 12, borderWidth: 1, borderColor: COLORS.gray300, alignItems: 'center', paddingVertical: 12 },
-  clearDateText: { fontSize: 14, fontWeight: '700', color: COLORS.green600 },
 });

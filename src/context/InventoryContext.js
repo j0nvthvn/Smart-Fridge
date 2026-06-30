@@ -58,7 +58,7 @@ function normalizeProduct(product, userId, { strictDate = true } = {}) {
     if (!strictDate) {
       return {
         user_id: userId,
-        name: product.name.trim(),
+        name: product.name?.trim() || '',
         category: product.category?.trim() || 'Sin categoria',
         expires: null,
         quantity: product.quantity?.trim() || '1 unidad',
@@ -71,7 +71,7 @@ function normalizeProduct(product, userId, { strictDate = true } = {}) {
 
   return {
     user_id: userId,
-    name: product.name.trim(),
+    name: product.name?.trim() || '',
     category: product.category?.trim() || 'Sin categoria',
     expires,
     quantity: product.quantity?.trim() || '1 unidad',

@@ -15,7 +15,7 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import { COLORS }     from './src/constants/colors';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { InventoryProvider } from './src/context/InventoryContext';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
 
@@ -28,6 +28,8 @@ const TAB_ICONS = {
 const TAB_CHEF = 'Chef IA';
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -39,9 +41,9 @@ function MainTabs() {
             backgroundColor: COLORS.white,
             borderTopWidth: 0.5,
             borderTopColor: COLORS.gray300,
-            paddingBottom: 6,
+            paddingBottom: Math.max(insets.bottom, 6),
             paddingTop: 6,
-            height: 60,
+            height: 54 + insets.bottom,
           },
           tabBarLabelStyle: {
             fontSize: 10,
