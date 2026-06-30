@@ -1,5 +1,61 @@
 {
-  "plugins": [
-    "expo-font"
-  ]
+  "expo": {
+    "name": "SmartFridge",
+    "slug": "smartfridge",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "smartfridge",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2CA456"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.smartfridge.app"
+    },
+    "android": {
+      "package": "com.smartfridge.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon-fg.png",
+        "backgroundColor": "#2CA456"
+      },
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SmartFridge usa la cámara para escanear códigos de barra de tus productos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/adaptive-icon-fg.png",
+          "color": "#2CA456"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c11c6bc0-41ea-4bf4-9ee4-b6810e0a48ab"
+      }
+    },
+    "owner": "j0nvthvn569"
+  }
 }
