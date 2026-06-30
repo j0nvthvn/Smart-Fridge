@@ -3,6 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { supabase } from '../services/supabase';
 import { parseSupabaseError } from '../utils/errorUtils';
+import {
+  loadNotificationSettings,
+  saveNotificationSettings,
+  syncExpiryNotifications,
+} from '../services/notificationService';
 
 const LEGACY_STORAGE_KEY = '@smartfridge/inventory';
 const PRODUCT_COLUMNS = 'id, name, category, expires, quantity, barcode, created_at';
@@ -84,6 +89,22 @@ export function InventoryProvider({ children }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notificationSettings, setNotificationSettings] = useState(null);
+
+  useEffect(() => {
+    loadNotificationSettings().then(setNotificationSettings);
+  }, []);
+
+  useEffect(() => {
+    if (!notificationSettings) return;
+    syncExpiryNotifications(products, notificationSettings);
+  }, [products, notificationSettings]);
+
+  async function updateNotificationSettings(partial) {
+    const next = { ...notificationSettings, ...partial };
+    setNotificationSettings(next);
+    await saveNotificationSettings(next);
+  }
 
   async function migrateLegacyInventory(userId) {
     const stored = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
@@ -242,6 +263,8 @@ export function InventoryProvider({ children }) {
         updateProduct,
         deleteProduct,
         refreshInventory,
+        notificationSettings,
+        updateNotificationSettings,
       }}
     >
       {children}
