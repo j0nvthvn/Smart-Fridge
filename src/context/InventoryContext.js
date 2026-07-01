@@ -42,18 +42,28 @@ function buildAlert(product) {
   if (days === null || days > 5) return null;
 
   if (days < 0) {
-    return { ...product, date: 'Vencido', level: 'expired' };
+    return { ...product, days, date: 'Vencido', level: 'expired' };
   }
 
   if (days === 0) {
-    return { ...product, date: 'Vence hoy', level: 'urgent' };
+    return { ...product, days, date: 'Vence hoy', level: 'urgent' };
   }
 
   return {
     ...product,
+    days,
     date: `Vence en ${days} dia${days > 1 ? 's' : ''}`,
     level: days <= 2 ? 'soon' : 'ok',
   };
+}
+
+const ALERT_SEVERITY = { expired: 0, urgent: 1, soon: 2, ok: 3 };
+
+function sortAlerts(alerts) {
+  return [...alerts].sort((a, b) => {
+    const severityDiff = ALERT_SEVERITY[a.level] - ALERT_SEVERITY[b.level];
+    return severityDiff !== 0 ? severityDiff : a.days - b.days;
+  });
 }
 
 function normalizeProduct(product, userId, { strictDate = true } = {}) {
@@ -242,7 +252,8 @@ export function InventoryProvider({ children }) {
   }
 
   const summary = useMemo(() => {
-    const alerts = products.map(buildAlert).filter(Boolean);
+    const allAlerts = products.map(buildAlert).filter(Boolean);
+    const alerts = sortAlerts(allAlerts.filter(item => item.level !== 'ok'));
 
     return {
       total: products.length,

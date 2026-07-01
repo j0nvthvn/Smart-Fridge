@@ -89,6 +89,23 @@ function buildTriggers(product, daysWarning) {
   return triggers;
 }
 
+export async function sendTestNotification() {
+  if (Platform.OS === 'web') return { ok: false, reason: 'web' };
+
+  const granted = await requestNotificationPermissions();
+  if (!granted) return { ok: false, reason: 'permission' };
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🔔 Notificación de prueba',
+      body: 'Así se verán tus alertas de vencimiento.',
+    },
+    trigger: null,
+  });
+
+  return { ok: true };
+}
+
 export async function syncExpiryNotifications(products, settings) {
   if (Platform.OS === 'web') return;
 

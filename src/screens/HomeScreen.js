@@ -13,11 +13,13 @@ import { useInventory } from '../context/InventoryContext';
 import { getCategoryConfig } from '../constants/categories';
 
 const ALERT_STYLES = {
-  expired: { border: COLORS.red400,    tag: 'Vencido', tagBg: COLORS.red50,    tagColor: COLORS.red400    },
-  urgent:  { border: COLORS.red400,    tag: 'Urgente', tagBg: COLORS.red50,    tagColor: COLORS.red400    },
-  soon:    { border: COLORS.orange400, tag: 'Pronto',  tagBg: COLORS.orange50, tagColor: COLORS.orange400 },
-  ok:      { border: COLORS.green500,  tag: 'OK',      tagBg: COLORS.green50,  tagColor: COLORS.green600  },
+  expired: { border: COLORS.red400,    icon: 'alert-octagon', tag: 'Vencido', tagBg: COLORS.red50,    tagColor: COLORS.red400    },
+  urgent:  { border: COLORS.red400,    icon: 'alert-circle',  tag: 'Hoy',     tagBg: COLORS.red50,    tagColor: COLORS.red400    },
+  soon:    { border: COLORS.orange400, icon: 'clock',         tag: 'Pronto',  tagBg: COLORS.orange50, tagColor: COLORS.orange400 },
 };
+
+const MAX_HOME_ALERTS = 5;
+const MAX_SHOPPING_ITEMS = 5;
 
 const SUMMARY_CARDS = [
   { icon: 'package',        key: 'total',        label: 'productos', color: COLORS.green600  },
@@ -44,6 +46,8 @@ export default function HomeScreen() {
     await refreshInventory({ showLoading: false });
     setRefreshing(false);
   }, [refreshInventory]);
+
+  const expiredProducts = summary.alerts.filter(item => item.level === 'expired');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -122,47 +126,99 @@ export default function HomeScreen() {
             </View>
           </View>
         ) : (
-          summary.alerts.map(item => {
-            const alertStyle = ALERT_STYLES[item.level] || ALERT_STYLES.ok;
-            const catCfg = getCategoryConfig(item.category);
+          <>
+            {summary.alerts.slice(0, MAX_HOME_ALERTS).map(item => {
+              const alertStyle = ALERT_STYLES[item.level];
+              const catCfg = getCategoryConfig(item.category);
 
-            return (
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.alertCard}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('Inventario')}
+                >
+                  <View style={[styles.alertBorder, { backgroundColor: alertStyle.border }]} />
+                  <View style={[styles.alertCategoryAvatar, { backgroundColor: catCfg.bg }]}>
+                    <MaterialCommunityIcons name={catCfg.icon} size={18} color={catCfg.color} />
+                  </View>
+                  <View style={styles.alertInfo}>
+                    <Text style={styles.alertName}>{item.name}</Text>
+                    <Text style={styles.alertDate}>{item.date} · {item.quantity || '1 unidad'}</Text>
+                  </View>
+                  <View style={[styles.tag, { backgroundColor: alertStyle.tagBg }]}>
+                    <Feather name={alertStyle.icon} size={11} color={alertStyle.tagColor} />
+                    <Text style={[styles.tagText, { color: alertStyle.tagColor }]}>
+                      {alertStyle.tag}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+
+            {summary.alerts.length > MAX_HOME_ALERTS && (
               <TouchableOpacity
-                key={item.id}
-                style={styles.alertCard}
+                style={styles.viewAllRow}
                 activeOpacity={0.7}
                 onPress={() => navigation.navigate('Inventario')}
               >
-                <View style={[styles.alertBorder, { backgroundColor: alertStyle.border }]} />
-                <View style={[styles.alertCategoryAvatar, { backgroundColor: catCfg.bg }]}>
-                  <MaterialCommunityIcons name={catCfg.icon} size={18} color={catCfg.color} />
-                </View>
-                <View style={styles.alertInfo}>
-                  <Text style={styles.alertName}>{item.name}</Text>
-                  <Text style={styles.alertDate}>{item.date} · {item.quantity || '1 unidad'}</Text>
-                </View>
-                <View style={[styles.tag, { backgroundColor: alertStyle.tagBg }]}>
-                  <Text style={[styles.tagText, { color: alertStyle.tagColor }]}>
-                    {alertStyle.tag}
-                  </Text>
-                </View>
+                <Text style={styles.viewAllText}>
+                  Ver {summary.alerts.length - MAX_HOME_ALERTS} más
+                </Text>
+                <Feather name="chevron-right" size={14} color={COLORS.green600} />
               </TouchableOpacity>
-            );
-          })
+            )}
+          </>
         )}
 
         {/* Shopping list */}
-        <SectionHeader icon="list" title="Lista de compras" />
+        <SectionHeader icon="list" title="Lista de compras" count={expiredProducts.length} />
 
-        <TouchableOpacity
-          style={styles.alertCard}
-          activeOpacity={0.7}
-          onPress={() => navigation.navigate('Inventario', { statusFilter: 'vencidos' })}
-        >
-          <View style={[styles.alertBorder, { backgroundColor: COLORS.green500 }]} />
-          <Text style={styles.shoppingText}>{summary.expired} productos para reponer</Text>
-          <Text style={styles.shoppingLink}>Ver ›</Text>
-        </TouchableOpacity>
+        {expiredProducts.length === 0 ? (
+          <View style={styles.alertCard}>
+            <View style={[styles.alertBorder, { backgroundColor: COLORS.green500 }]} />
+            <View style={styles.alertInfo}>
+              <Text style={styles.alertName}>Nada para reponer</Text>
+              <Text style={styles.alertDate}>No tienes productos vencidos</Text>
+            </View>
+          </View>
+        ) : (
+          <>
+            {expiredProducts.slice(0, MAX_SHOPPING_ITEMS).map(item => {
+              const catCfg = getCategoryConfig(item.category);
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.alertCard}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('Inventario', { statusFilter: 'vencidos' })}
+                >
+                  <View style={[styles.alertBorder, { backgroundColor: COLORS.green500 }]} />
+                  <View style={[styles.alertCategoryAvatar, { backgroundColor: catCfg.bg }]}>
+                    <MaterialCommunityIcons name={catCfg.icon} size={18} color={catCfg.color} />
+                  </View>
+                  <View style={styles.alertInfo}>
+                    <Text style={styles.alertName}>{item.name}</Text>
+                    <Text style={styles.alertDate}>{item.quantity || '1 unidad'} · reponer</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+
+            {expiredProducts.length > MAX_SHOPPING_ITEMS && (
+              <TouchableOpacity
+                style={styles.viewAllRow}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('Inventario', { statusFilter: 'vencidos' })}
+              >
+                <Text style={styles.viewAllText}>
+                  Ver {expiredProducts.length - MAX_SHOPPING_ITEMS} más
+                </Text>
+                <Feather name="chevron-right" size={14} color={COLORS.green600} />
+              </TouchableOpacity>
+            )}
+          </>
+        )}
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -279,6 +335,9 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 20,
@@ -288,16 +347,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
   },
-  shoppingText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
-    color: COLORS.green600,
-    paddingVertical: 12,
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginBottom: 8,
   },
-  shoppingLink: {
+  viewAllText: {
     fontSize: 12,
-    color: COLORS.green500,
-    paddingRight: 12,
+    fontWeight: '600',
+    color: COLORS.green600,
   },
 });

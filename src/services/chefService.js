@@ -1,6 +1,33 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama-3.3-70b-versatile';
+const MODEL_KEY = '@smartfridge/chef-model';
+
+export const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+const FALLBACK_MODEL = 'llama-3.1-8b-instant';
+
+export const CHEF_MODEL_OPTIONS = [
+  { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (recomendado)' },
+  { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
+  { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B' },
+  { id: 'qwen/qwen3-32b', label: 'Qwen3 32B' },
+  { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (rápido)' },
+];
+
+export async function loadChefModel() {
+  try {
+    const stored = await AsyncStorage.getItem(MODEL_KEY);
+    if (stored && CHEF_MODEL_OPTIONS.some(m => m.id === stored)) return stored;
+    return DEFAULT_MODEL;
+  } catch {
+    return DEFAULT_MODEL;
+  }
+}
+
+export async function saveChefModel(modelId) {
+  await AsyncStorage.setItem(MODEL_KEY, modelId);
+}
 
 function buildSystemPrompt(products) {
   const noProducts = !products || products.length === 0;
@@ -79,7 +106,13 @@ function friendlyErrorMessage(response, err) {
   return err?.error?.message ?? `Error ${response.status}`;
 }
 
-async function requestCompletion(messages, systemPrompt) {
+export async function testChefConnection() {
+  if (!GROQ_API_KEY) {
+    return { ok: false, message: 'Falta configurar EXPO_PUBLIC_GROQ_API_KEY en el archivo .env' };
+  }
+
+  const model = await loadChefModel();
+
   let response;
   try {
     response = await fetch(GROQ_URL, {
@@ -89,7 +122,34 @@ async function requestCompletion(messages, systemPrompt) {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 5,
+      }),
+    });
+  } catch (_) {
+    return { ok: false, message: 'No se pudo conectar con Groq, revisa tu conexión.' };
+  }
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    return { ok: false, message: friendlyErrorMessage(response, err) };
+  }
+
+  return { ok: true, message: `Conexión OK con el modelo ${model}.` };
+}
+
+async function requestCompletion(messages, systemPrompt, model) {
+  let response;
+  try {
+    response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: systemPrompt },
@@ -127,11 +187,26 @@ export async function sendMessage(messages, products) {
   }
 
   const systemPrompt = buildSystemPrompt(products);
+  const model = await loadChefModel();
+  const models = model === FALLBACK_MODEL ? [model] : [model, FALLBACK_MODEL];
 
-  let result = await requestCompletion(messages, systemPrompt);
-  if (!result.reply) {
-    result = await requestCompletion(messages, systemPrompt);
+  let result = null;
+  let lastError = null;
+
+  for (const currentModel of models) {
+    try {
+      result = await requestCompletion(messages, systemPrompt, currentModel);
+      if (!result.reply) {
+        result = await requestCompletion(messages, systemPrompt, currentModel);
+      }
+      if (result.reply) break;
+    } catch (err) {
+      lastError = err;
+      result = null;
+    }
   }
+
+  if (!result) throw lastError;
 
   return result.reply ?? { type: 'text', content: result.raw, suggestions: [] };
 }

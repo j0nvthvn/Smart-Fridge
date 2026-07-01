@@ -15,6 +15,7 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import { COLORS }     from './src/constants/colors';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { InventoryProvider } from './src/context/InventoryContext';
+import { ToastProvider } from './src/context/ToastContext';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
@@ -76,22 +77,31 @@ function AuthGate() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.green500 }}>
-        <ActivityIndicator size="large" color={COLORS.white} />
-      </View>
+      <>
+        <StatusBar style="light" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.green500 }}>
+          <ActivityIndicator size="large" color={COLORS.white} />
+        </View>
+      </>
     );
   }
 
-  if (user) return <MainTabs />;
-
-  if (screen === 'register') {
+  if (user) {
     return (
-      <RegisterScreen onGoToLogin={() => setScreen('login')} />
+      <>
+        <StatusBar style="dark" />
+        <MainTabs />
+      </>
     );
   }
 
   return (
-    <LoginScreen onGoToRegister={() => setScreen('register')} />
+    <>
+      <StatusBar style="light" />
+      {screen === 'register'
+        ? <RegisterScreen onGoToLogin={() => setScreen('login')} />
+        : <LoginScreen onGoToRegister={() => setScreen('register')} />}
+    </>
   );
 }
 
@@ -100,8 +110,9 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <InventoryProvider>
-          <StatusBar style="light" />
-          <AuthGate />
+          <ToastProvider>
+            <AuthGate />
+          </ToastProvider>
         </InventoryProvider>
       </AuthProvider>
     </SafeAreaProvider>

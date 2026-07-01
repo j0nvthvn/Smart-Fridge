@@ -8,9 +8,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 export default function EditProfileScreen({ onClose }) {
   const { user, updateProfile } = useAuth();
+  const showToast = useToast();
   const [name, setName] = useState(user?.name ?? '');
   const [loading, setLoading] = useState(false);
 
@@ -22,9 +24,8 @@ export default function EditProfileScreen({ onClose }) {
       Alert.alert('Error', error);
       return;
     }
-    Alert.alert('Perfil actualizado', 'Tus datos se guardaron correctamente.', [
-      { text: 'OK', onPress: onClose },
-    ]);
+    showToast('Tus datos se guardaron correctamente.');
+    onClose();
   }
 
   return (

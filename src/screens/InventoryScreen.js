@@ -18,6 +18,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import { CATEGORIES, getCategoryConfig } from '../constants/categories';
 import { useInventory } from '../context/InventoryContext';
+import { useToast } from '../context/ToastContext';
 import DatePickerModal from '../components/DatePickerModal';
 import { formatDisplayDate } from '../utils/date';
 
@@ -65,6 +66,7 @@ export default function InventoryScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { products, loading, error, updateProduct, deleteProduct, refreshInventory } = useInventory();
+  const showToast = useToast();
 
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Todos');
@@ -172,7 +174,7 @@ export default function InventoryScreen() {
     try {
       await updateProduct(editing.id, form);
       closeEdit();
-      Alert.alert('Inventario', 'Producto actualizado correctamente.');
+      showToast('Producto actualizado correctamente.');
     } catch (saveError) {
       setSaving(false);
       Alert.alert('Error al guardar', saveError.message || 'No se pudo actualizar el producto.');
@@ -348,64 +350,6 @@ export default function InventoryScreen() {
         <Feather name="plus" size={24} color={COLORS.white} />
       </TouchableOpacity>
 
-      <Modal visible={showCategoryPicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.optionSheet}>
-            <Text style={styles.optionTitle}>Seleccionar categoria</Text>
-            {CATEGORIES.map(category => {
-              const cfg = getCategoryConfig(category);
-              const isSelected = form.category === category;
-              return (
-                <TouchableOpacity key={category}
-                  style={[styles.optionRow, isSelected && styles.optionRowSelected]}
-                  onPress={() => { setForm(f => ({ ...f, category })); setShowCategoryPicker(false); }}>
-                  <View style={[styles.pickerCategoryIcon, { backgroundColor: cfg.bg }]}>
-                    <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
-                  </View>
-                  <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>{category}</Text>
-                  {isSelected ? <Feather name="check" size={18} color={COLORS.green600} /> : null}
-                </TouchableOpacity>
-              );
-            })}
-            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
-              <Text style={styles.optionCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={showUnitPicker} transparent animationType="fade">
-        <View style={styles.optionOverlay}>
-          <View style={styles.optionSheet}>
-            <Text style={styles.optionTitle}>Tipo de cantidad</Text>
-            {QUANTITY_UNITS.map(unit => (
-              <TouchableOpacity key={unit}
-                style={[styles.optionRow, quantityParts.unit === unit && styles.optionRowSelected]}
-                onPress={() => {
-                  setForm(f => ({ ...f, quantity: buildQuantity(parseQuantity(f.quantity).amount, unit) }));
-                  setShowUnitPicker(false);
-                }}>
-                <Text style={[styles.optionText, quantityParts.unit === unit && styles.optionTextSelected]}>{unit}</Text>
-                {quantityParts.unit === unit ? <Feather name="check" size={18} color={COLORS.green600} /> : null}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowUnitPicker(false)}>
-              <Text style={styles.optionCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <DatePickerModal
-        visible={showDatePicker}
-        value={form.expires}
-        onSelect={dateValue => {
-          setForm(f => ({ ...f, expires: dateValue }));
-          setShowDatePicker(false);
-        }}
-        onClose={() => setShowDatePicker(false)}
-      />
-
       <Modal visible={!!editing} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.modalSafe}>
           <View style={styles.modalHeader}>
@@ -488,6 +432,64 @@ export default function InventoryScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      <Modal visible={showCategoryPicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.optionSheet}>
+            <Text style={styles.optionTitle}>Seleccionar categoria</Text>
+            {CATEGORIES.map(category => {
+              const cfg = getCategoryConfig(category);
+              const isSelected = form.category === category;
+              return (
+                <TouchableOpacity key={category}
+                  style={[styles.optionRow, isSelected && styles.optionRowSelected]}
+                  onPress={() => { setForm(f => ({ ...f, category })); setShowCategoryPicker(false); }}>
+                  <View style={[styles.pickerCategoryIcon, { backgroundColor: cfg.bg }]}>
+                    <MaterialCommunityIcons name={cfg.icon} size={18} color={cfg.color} />
+                  </View>
+                  <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>{category}</Text>
+                  {isSelected ? <Feather name="check" size={18} color={COLORS.green600} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowCategoryPicker(false)}>
+              <Text style={styles.optionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showUnitPicker} transparent animationType="fade">
+        <View style={styles.optionOverlay}>
+          <View style={styles.optionSheet}>
+            <Text style={styles.optionTitle}>Tipo de cantidad</Text>
+            {QUANTITY_UNITS.map(unit => (
+              <TouchableOpacity key={unit}
+                style={[styles.optionRow, quantityParts.unit === unit && styles.optionRowSelected]}
+                onPress={() => {
+                  setForm(f => ({ ...f, quantity: buildQuantity(parseQuantity(f.quantity).amount, unit) }));
+                  setShowUnitPicker(false);
+                }}>
+                <Text style={[styles.optionText, quantityParts.unit === unit && styles.optionTextSelected]}>{unit}</Text>
+                {quantityParts.unit === unit ? <Feather name="check" size={18} color={COLORS.green600} /> : null}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.optionCancel} onPress={() => setShowUnitPicker(false)}>
+              <Text style={styles.optionCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <DatePickerModal
+        visible={showDatePicker}
+        value={form.expires}
+        onSelect={dateValue => {
+          setForm(f => ({ ...f, expires: dateValue }));
+          setShowDatePicker(false);
+        }}
+        onClose={() => setShowDatePicker(false)}
+      />
     </SafeAreaView>
   );
 }
